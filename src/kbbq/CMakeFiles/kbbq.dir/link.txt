@@ -1,0 +1,2 @@
+/usr/bin/ar qc libkbbq.a  CMakeFiles/kbbq.dir/bloom.cc.o CMakeFiles/kbbq.dir/covariateutils.cc.o CMakeFiles/kbbq.dir/recalibrateutils.cc.o CMakeFiles/kbbq.dir/readutils.cc.o CMakeFiles/kbbq.dir/htsiter.cc.o
+/usr/bin/ranlib libkbbq.a

@@ -1,0 +1,44 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/adam/code/cbbq/src/minionrng/minion.cc
+minion.hpp
+/home/adam/code/cbbq/src/minionrng/minion.hpp
+
+include/minionrng/minion.hpp
+array
+-
+cassert
+-
+cfloat
+-
+cmath
+-
+cstdint
+-
+cstring
+-
+limits
+-
+numeric
+-
+type_traits
+-
+vector
+-
+process.h
+-
+unistd.h
+-
+chrono
+-
+random
+-
+ctime
+-
+

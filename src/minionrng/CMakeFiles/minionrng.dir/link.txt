@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -g  -shared -Wl,-soname,libminionrng.so -o libminionrng.so CMakeFiles/minionrng.dir/minion.cc.o 
