@@ -25,6 +25,9 @@
 //                                      31 =    11111
 // BF_SHIFT is the size of the bloom filter (2 ^ BF_SHIFT bits.)
 
+// TODO: use the approximate number of kmers and a desired false positive rate to
+//		 calculate the optimal nshift and nhashes parameter
+
 namespace bloom{
 
 
@@ -40,6 +43,7 @@ public:
 	~Bloom();
 	int nshift; //size of hash; 9 <= nshift <= 55
 	int nhashes; //number of hash functions; 4 seems OK
+	int ninserts;
 	std::shared_ptr<uint8_t[]> bloom;
 	//this is similar to yak_bf_insert()
 	int insert(unsigned long long hash); //try to insert the hash. return number of hashes that hit
@@ -64,7 +68,7 @@ std::vector<uint64_t> hash_seq(std::string seq, int k);
 
 //subsample the hashes and insert into the proper bloom filter based on the prefix.
 //htsiter::KmerSubsampler is the prefferred way to do this.
-void subsample_and_insert(bloomary_t bfs, std::vector<uint64_t> hashes, double alpha);
+void subsample_and_insert(bloomary_t& bfs, std::vector<uint64_t> hashes, double alpha);
 
 std::array<std::vector<int>,2> overlapping_kmers_in_bf(std::string seq, bloomary_t& b, int k = 31);
 
@@ -82,6 +86,14 @@ std::array<size_t,2> find_longest_trusted_seq(std::string seq, bloomary_t& b, in
 //return the best character (multiple in case of a tie) and the length of the fix.
 //if the length of the fix is 0, no fix was found and correction should end.
 std::pair<std::vector<char>, int> find_longest_fix(std::string seq, bloomary_t& t, int k);
+
+//TODO:
+//calculate the false positive rate of the given bloom array.
+long double calculate_fpr(bloomary_t& bf);
+
+//TODO:
+//given the sampling rate, calculate the probability any kmer is in the array.
+long double calculate_phit(bloomary_t& bf, long double alpha);
 
 }
 #endif

@@ -4,6 +4,7 @@
 #include "recalibrateutils.hh"
 #include <memory>
 #include <iostream>
+#include <htslib/hfile.h>
 
 //opens file filename and returns a unique_ptr to the result.
 std::unique_ptr<htsiter::HTSFile> open_file(std::string filename, bool is_bam = true){
@@ -33,13 +34,34 @@ int main(int argc, char* argv[]){
 		return 1;
 	}
 	int k = 31;
-	bool is_bam = true;
+	long double alpha = .05;
 	std::string filename = std::string(argv[1]);
-	//todo: add some logic to see if it's a bam
+
+	//see if we have a bam
+	htsFormat fmt;
+	hFILE* fp = hopen(filename.c_str(), "r");
+	if (hts_detect_format(fp, &fmt) < 0) {
+		//error
+		std::cerr << "Error opening file " << filename;
+		hclose_abruptly(fp);
+		return 1;
+	}
+	hclose(fp);
+	bool is_bam = true;
+	if(fmt.format == bam || fmt.format == cram){
+		is_bam = true;
+	} else if (fmt.format == fastq){
+		is_bam = false;
+	} else {
+		//error
+		std::cerr << "Error: File format must be bam, cram, or fastq.";
+		return 1;
+	}
+
 	std::unique_ptr<htsiter::HTSFile> file;
 	file = std::move(open_file(filename, is_bam));
 
-	htsiter::KmerSubsampler subsampler(file.get());
+	htsiter::KmerSubsampler subsampler(file.get(), k, alpha);
 	//load subsampled bf x
 	recalibrateutils::kmer_cache_t subsampled_hashes = recalibrateutils::subsample_kmers(subsampler);
 	bloom::bloomary_t subsampled{};
@@ -47,7 +69,7 @@ int main(int argc, char* argv[]){
 
 	//calculate thresholds
 	//TODO: calculate p any kmer added to bloom filter
-	double p = 0.05;
+	long double p = bloom::calculate_phit(subsampled, alpha);
 	std::vector<int> thresholds = covariateutils::calculate_thresholds(k, p);
 
 	std::vector<long double> cdf = covariateutils::log_binom_cdf(k,p);

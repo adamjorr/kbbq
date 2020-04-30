@@ -27,7 +27,7 @@ namespace bloom
 		return ret;
 	}
 
-	void subsample_and_insert(bloomary_t bfs, std::vector<uint64_t> hashes, double alpha, minion::Random& rng){
+	void subsample_and_insert(bloomary_t& bfs, std::vector<uint64_t> hashes, double alpha, minion::Random& rng){
 		int mask = (1<<PREFIXBITS)-1;
 		std::bernoulli_distribution dist(alpha);
 		for(uint64_t h: hashes){
@@ -249,8 +249,9 @@ namespace bloom
 		return std::make_pair(best_c, k - best_l);
 	}
 
-	Bloom::Bloom(int nshift, int nhashes): nshift(nshift), nhashes(nhashes), 
-		bloom(static_cast<uint8_t*>(aligned_alloc(1<<(YAK_BLK_SHIFT-3), 1ULL<<(nshift-3))),
+	Bloom::Bloom(int nshift, int nhashes): nshift(nshift), nhashes(nhashes), ninserts(0),
+		//-3 is divide by 8, so we have nshift bits
+		bloom(static_cast<uint8_t*>(aligned_alloc(1<<(YAK_BLK_SHIFT-3), 1ULL<<(nshift-3))), 
 			[](uint8_t* p){free(p);}) {
 		//nshift + YAK_BLK_SHIFT should be less than 64 (nshift <= 55)
 		//nshift should be greater than or equal to YAK_BLK_SHIFT (9)
@@ -283,6 +284,7 @@ namespace bloom
 			*q |= u;
 			++i;
 		}
+		++ninserts;
 		return count;
 	}
 
@@ -356,6 +358,27 @@ namespace bloom
 
 
 	} */
+
+	long double calculate_fpr(bloomary_t& bf){
+		uint64_t m = 0; // bf[0].nshift; //number of bits
+		int k = 0; //bf[0].nhashes; //number of hashes; we take an average and round i thnk
+		uint64_t n = 0; //number of insertions
+		for(Bloom b : bf){
+			m += b.nshift;
+			k += b.nhashes;
+			n += b.ninserts;
+		}
+		k /= bf.size();
+		return exp((long double)k * log1p(-exp(-(long double)k * n / m))); // (1 - exp(-kn/m))^k
+	}
+
+	long double calculate_phit(bloomary_t& bf, long double alpha){
+		long double fpr = calculate_fpr(bf);
+		double exponent = alpha < 0.1 ? 0.2 / alpha : 2;
+		long double pa = 1 - pow(1-alpha,exponent);
+		return pa + fpr - fpr * pa;
+	}
+
 }
 
 
