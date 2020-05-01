@@ -87,13 +87,18 @@ std::array<size_t,2> find_longest_trusted_seq(std::string seq, bloomary_t& b, in
 //if the length of the fix is 0, no fix was found and correction should end.
 std::pair<std::vector<char>, int> find_longest_fix(std::string seq, bloomary_t& t, int k);
 
-//TODO:
 //calculate the false positive rate of the given bloom array.
 long double calculate_fpr(bloomary_t& bf);
 
-//TODO:
 //given the sampling rate, calculate the probability any kmer is in the array.
 long double calculate_phit(bloomary_t& bf, long double alpha);
+
+//given the number of inserts and the desired fpr, calculate the total size of the hash needed
+uint64_t numbits(uint64_t numinserts, long double fpr);
+
+//given the desired fpr, calculate the number of hash fn's needed
+//assuming we use the optimal number of bits
+int numhashes(uint64_t numinserts, long double fpr);
 
 }
 #endif

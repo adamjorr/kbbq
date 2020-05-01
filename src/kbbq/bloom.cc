@@ -379,6 +379,16 @@ namespace bloom
 		return pa + fpr - fpr * pa;
 	}
 
+	uint64_t numbits(uint64_t numinserts, long double fpr){
+		//m = - n * log2(fpr) / ln2
+		return - numinserts * log2(fpr) / log(2);
+	}
+
+	int numhashes(long double fpr){
+		//k = -log2(fpr)
+		return -log2(fpr);
+	}
+
 }
 
 
