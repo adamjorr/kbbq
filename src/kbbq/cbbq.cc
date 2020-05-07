@@ -29,11 +29,28 @@ int check_args(int argc, char* argv[]){
 	}
 }
 
+//nshift is the total number of bits, so it's divided by each block
+bloom::bloomary_t init_bloomary(uint64_t nbits, int nhashes){
+	bloom::bloomary_t ret;
+	int eachbits = nbits / ret.size() + 1; //+1 rounds up
+	std::cerr << "Requested a total of " << nbits << " bits." << std::endl;
+	std::cerr << "Size of each bloom filter: " << eachbits << " bits." << std::endl;
+	std::cerr << "Number of hash functions: " << nhashes << "." << std::endl;
+	for(size_t i = 0; i < ret.size(); ++i){
+		bloom::Bloom n(log2(eachbits), nhashes);
+		ret[i] = std::move(n);
+	}
+	return ret;
+}
+
 int main(int argc, char* argv[]){
 	if (check_args(argc, argv) > 0){
 		return 1;
 	}
 	int k = 31;
+	uint64_t genomelen = 10000000;
+	long double sampler_desiredfpr = 0.01;
+	long double trusted_desiredfpr = 0.0005;
 	long double alpha = .05;
 	std::string filename = std::string(argv[1]);
 
@@ -50,7 +67,7 @@ int main(int argc, char* argv[]){
 	bool is_bam = true;
 	if(fmt.format == bam || fmt.format == cram){
 		is_bam = true;
-	} else if (fmt.format == fastq){
+	} else if (fmt.format == fastq_format){
 		is_bam = false;
 	} else {
 		//error
@@ -64,11 +81,25 @@ int main(int argc, char* argv[]){
 	htsiter::KmerSubsampler subsampler(file.get(), k, alpha);
 	//load subsampled bf x
 	recalibrateutils::kmer_cache_t subsampled_hashes = recalibrateutils::subsample_kmers(subsampler);
-	bloom::bloomary_t subsampled{};
+	bloom::bloomary_t subsampled = init_bloomary(bloom::numbits(genomelen*1.5, sampler_desiredfpr),
+		bloom::numhashes(sampler_desiredfpr));
 	recalibrateutils::add_kmers_to_bloom(subsampled_hashes, subsampled);
 
 	//calculate thresholds
 	//TODO: calculate p any kmer added to bloom filter
+	long double fpr = bloom::calculate_fpr(subsampled);
+	uint64_t hits = 0;
+	for(bloom::Bloom& b : subsampled){
+		hits += b.ninserts;
+	}
+	std::cerr << "Approximate additions to bloom filter: " << hits << std::endl;
+	std::cerr << "Approximate false positive rate: " << fpr << std::endl;
+	if(fpr > .15){
+		std::cerr << "Error: false positive rate is too high. " <<
+			"Adjust parameters and try again." << std::endl;
+		return 1;
+	}
+
 	long double p = bloom::calculate_phit(subsampled, alpha);
 	std::vector<int> thresholds = covariateutils::calculate_thresholds(k, p);
 
@@ -85,7 +116,8 @@ int main(int argc, char* argv[]){
 	//get trusted kmers bf using subsampled bf
 	file = std::move(open_file(filename, is_bam));
 	recalibrateutils::kmer_cache_t trusted_hashes = recalibrateutils::find_trusted_kmers(file.get(), subsampled, thresholds, k);
-	bloom::bloomary_t trusted;
+	bloom::bloomary_t trusted = init_bloomary(bloom::numbits(genomelen*1.5, trusted_desiredfpr),
+		bloom::numhashes(trusted_desiredfpr));
 	recalibrateutils::add_kmers_to_bloom(trusted_hashes, trusted);
 
 	//use trusted kmers to find errors

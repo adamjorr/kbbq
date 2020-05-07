@@ -184,7 +184,6 @@ namespace bloom
 			char d = *e;
 			if( d != original_c ){
 				seq[k-1] = d;
-				// current_l = nkmers_in_bf(seq.substr(0, end), t, k); //this is not very efficient but that's ok
 				for(i = l = 0, x[0] = x[1] = 0; i < end; ++i){
 					int c = seq_nt4_table[seq[i]];
 					if (c < 4) { // not an "N" base
@@ -249,17 +248,12 @@ namespace bloom
 		return std::make_pair(best_c, k - best_l);
 	}
 
-	Bloom::Bloom(int nshift, int nhashes): nshift(nshift), nhashes(nhashes), ninserts(0),
+	Bloom::Bloom(int nshift, int nhashes): ninserts(0),
 		//-3 is divide by 8, so we have nshift bits
-		bloom(static_cast<uint8_t*>(aligned_alloc(1<<(YAK_BLK_SHIFT-3), 1ULL<<(nshift-3))), 
-			[](uint8_t* p){free(p);}) {
+		bloom(yak_bf_init(nshift, nhashes), [](yak_bf_t* p){yak_bf_destroy(p);}) {
 		//nshift + YAK_BLK_SHIFT should be less than 64 (nshift <= 55)
 		//nshift should be greater than or equal to YAK_BLK_SHIFT (9)
 		//thus 9 <= nshift <= 55
-		//	this->bloom = std::move( std::unique_ptr<uint8_t[]>(
-		// 	static_cast<uint8_t*>(aligned_alloc(1<<(YAK_BLK_SHIFT-3), 1ULL<<(nshift-3)))
-		// 	));
-		bzero(this->bloom.get(), 1ULL<<(nshift-3));
 	}
 
 	Bloom::~Bloom(){
@@ -267,40 +261,26 @@ namespace bloom
 	}
 
 	int Bloom::insert(unsigned long long hash){
-		int x = this->nshift - YAK_BLK_SHIFT; // the bloom filter size
-		unsigned long long y = hash & ((1ULL<<x)-1); //last x bits of hash;
-		int h1 = hash >> x & YAK_BLK_MASK; // 8 bits right before y;
-		int h2 = hash >> this->nshift & YAK_BLK_MASK; //8 bits right before h1;
-		uint8_t *p = &this->bloom[y << (YAK_BLK_SHIFT-3)];
-		if((h2&31) == 0){
-			h2 = (h2 + 1) & YAK_BLK_MASK;
+		int ninserted = yak_bf_insert(this->bloom.get(), hash);
+		if(ninserted < this->bloom->n_hashes){
+			++ninserts;
 		}
-		int z = h1;
-		int count = 0;
-		for(int i = 0; i < this->nhashes; z = (z + h2) & YAK_BLK_MASK){
-			uint8_t *q = &p[z>>3];
-			uint8_t u = 1 << (z&7);
-			count += !!(*q & u); // !! = double negate; makes 1 or 0
-			*q |= u;
-			++i;
-		}
-		++ninserts;
-		return count;
+		return ninserted;
 	}
 
 	int Bloom::query_n(unsigned long long hash){
-		int x = this->nshift - YAK_BLK_SHIFT; // the bloom filter size
+		int x = this->bloom->n_shift - YAK_BLK_SHIFT; // the bloom filter size
 		unsigned long long y = hash & ((1ULL<<x)-1); // fit the hash into the bloom filter;
 		//discard the beginning (which determines which filter the hash goes into to begin with)
 		int h1 = hash >> x & YAK_BLK_MASK; // this is the beginning part that's not in y;
-		int h2 = hash >> this->nshift & YAK_BLK_MASK; //this is some middle part of the hash;
-		uint8_t *p = &this->bloom[y << (YAK_BLK_SHIFT-3)];
+		int h2 = hash >> this->bloom->n_shift & YAK_BLK_MASK; //this is some middle part of the hash;
+		uint8_t *p = &this->bloom->b[y << (YAK_BLK_SHIFT-3)];
 		if((h2&31) == 0){
 			h2 = (h2 + 1) & YAK_BLK_MASK;
 		}
 		int z = h1;
 		int count = 0;
-		for(int i = 0; i < this->nhashes; z = (z + h2) & YAK_BLK_MASK){
+		for(int i = 0; i < this->bloom->n_hashes; z = (z + h2) & YAK_BLK_MASK){
 			uint8_t *q = &p[z>>3];
 			uint8_t u = 1 << (z&7);
 			count += !!(*q & u); // !! = double negate; makes 1 or 0
@@ -310,66 +290,32 @@ namespace bloom
 	}
 
 	inline bool Bloom::query(unsigned long long hash){
-		return (this->query_n(hash) == this->nhashes);
+		return (this->query_n(hash) == this->bloom->n_hashes);
 	}
 
 	//fprate given approximate number of times bf was loaded
 	double Bloom::fprate(unsigned long long n){
-		int m = 1ULL<<(this->nshift); //number of bits in the filter
-		int k = this -> nhashes;
+		int m = 1ULL<<(this->bloom->n_shift); //number of bits in the filter
+		int k = this->bloom->n_hashes;
 		return pow(1 - exp(-1.0 * k * n / m), k);
 	}
 
-	//there are 2 ** shift bits in the filter.
-	int Bloom::optimal_nhashes(int shift, int n){
+	//there are 2 ** shift bits in each filter.
+	int optimal_nhashes(int shift, int n){
 		return floor(1.0 * (std::pow(2,shift)) / n * log(2));
 	}
-
-	// bool Bloom::kmers_in(std::string seq, int k){
-	// 	std::vector<uint64_t> hashes = hash_seq(seq, k);
-	// 	std::vector<bool> in(hashes.size());
-	// 	for(int i = 0; i < hashes.size(); i++){
-	// 		in[i] = this->query(hashes[i]);
-	// 	}
-	// }
-
-	/* //let's consider the case when nshift is minimal; or nshift = YAK_BLK_SHIFT (9)
-	Bloom::insert(unsigned long long hash){
-		int h1 = hash & YAK_BLK_MASK; //last 8 bits
-		int h2 = hash >> 9 & YAK_BLK_MASK; //skip one then get the second to last 8 bits
-		// this looks like:
-		//... [h2] [h2] [h2] [h2] [h2] [h2] [h2] [h2] [] [h1] [h1] [h1] [h1] [h1] [h1] [h1] [h1]
-		//                                                 z    z    z    z    z <- initial address in bf
-		//                                                            chosen bit -> z    z    z     
-		uint8_t *p = &this->bloom[0];
-		if((h2&31) == 0){ //if last 5 bits of h2 == 0;
-			h2 = (h2 + 1) & YAK_BLK_MASK; //now last 5 bits == 1
-		}
-		int z = h1; // z = last 8 bits of hash
-		int count = 0; //initialize count
-		for(int i = 0; i < this->nhashes; z = (z + h2) & YAK_BLK_MASK){ //for every hash fn;
-			uint8_t *q = &p[z >> 3]; //q = pointer to some part of the bloom filter
-			uint8_t u = 1 << (z&7); // 1 << (last 3 bits of z); the bit chosen to look at
-			count += !!(*q & u); // increment count if it's there
-			q |= u; //update filter
-			++i; // go to next hash
-			//now z = z + h2
-		}
-
-
-	} */
 
 	long double calculate_fpr(bloomary_t& bf){
 		uint64_t m = 0; // bf[0].nshift; //number of bits
 		int k = 0; //bf[0].nhashes; //number of hashes; we take an average and round i thnk
 		uint64_t n = 0; //number of insertions
-		for(Bloom b : bf){
-			m += b.nshift;
-			k += b.nhashes;
+		for(Bloom& b : bf){
+			m += pow(2, b.bloom->n_shift);
+			k += b.bloom->n_hashes;
 			n += b.ninserts;
 		}
 		k /= bf.size();
-		return exp((long double)k * log1p(-exp(-(long double)k * n / m))); // (1 - exp(-kn/m))^k
+		return pow(1.0l - exp(-(long double)k * (long double)n / (long double)m), (long double)k); // (1 - exp(-kn/m))^k
 	}
 
 	long double calculate_phit(bloomary_t& bf, long double alpha){
@@ -381,12 +327,12 @@ namespace bloom
 
 	uint64_t numbits(uint64_t numinserts, long double fpr){
 		//m = - n * log2(fpr) / ln2
-		return - numinserts * log2(fpr) / log(2);
+		return numinserts * (-log2(fpr) / log(2));
 	}
 
 	int numhashes(long double fpr){
 		//k = -log2(fpr)
-		return -log2(fpr);
+		return floor(-log2(fpr));
 	}
 
 }

@@ -2,11 +2,15 @@
 #define KBBQ_BLOOM_HH
 #include <cstdint>
 #include <utility>
-#include <yak.h>
-#include <yak-priv.h> //provides yak_hash64()
 #include <htslib/hts.h>
 #include <minion.hpp>
 #include <memory>
+#include <functional>
+
+extern "C"{
+	#include <yak.h>
+	#include <yak-priv.h>
+}
 
 #define PREFIXBITS 10
 //the number of prefix hashes is 1<<PREFIXBITS - 1
@@ -35,24 +39,26 @@ class Bloom
 {
 public:
 	// the constructor approximates yak_bf_init()
-	Bloom(): Bloom(22, 4){} //approx 512MB
+	Bloom(): Bloom(0, 4){} //22 = approx 512MB
 	// across the 2^10 filters (2^PREFIXBITS), use 2^22 bits each. 2^22 * 2^10 = 2^32 bits = 512 MB
 	Bloom(int nshift): Bloom(nshift, 4){}
 	Bloom(int nshift, int nhashes);
+	Bloom(Bloom&& b) noexcept: bloom(std::move(b.bloom)){} //move ctor
+	Bloom& operator=(Bloom&& o){ninserts = o.ninserts; bloom = std::move(o.bloom); return *this;} //move assign
 	// this is similar to yak_bf_destroy()
 	~Bloom();
-	int nshift; //size of hash; 9 <= nshift <= 55
-	int nhashes; //number of hash functions; 4 seems OK
+	// int nshift; //size of hash; 9 <= nshift <= 55
+	// int nhashes; //number of hash functions; 4 seems OK
 	int ninserts;
-	std::shared_ptr<uint8_t[]> bloom;
+	std::unique_ptr<yak_bf_t, std::function<void(yak_bf_t*)>> bloom;
 	//this is similar to yak_bf_insert()
 	int insert(unsigned long long hash); //try to insert the hash. return number of hashes that hit
 	int query_n(unsigned long long hash); //return the number of hashes that hit but don't insert.
 	inline bool query(unsigned long long hash);
 	double fprate(unsigned long long n); //fprate given approximate number of times bf was loaded.
-	static int optimal_nhashes(int shift, int n); //calculate the optimal nhashes for a size and number of times loaded.
 };
 
+int optimal_nhashes(int shift, int n); //calculate the optimal nhashes for a size and number of times loaded.
 
 typedef std::array<Bloom,(1<<PREFIXBITS)> bloomary_t;
 
@@ -98,7 +104,7 @@ uint64_t numbits(uint64_t numinserts, long double fpr);
 
 //given the desired fpr, calculate the number of hash fn's needed
 //assuming we use the optimal number of bits
-int numhashes(uint64_t numinserts, long double fpr);
+int numhashes(long double fpr);
 
 }
 #endif
