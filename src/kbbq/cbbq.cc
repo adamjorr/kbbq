@@ -46,27 +46,27 @@ bloom::bloomary_t init_bloomary(uint64_t nbits, int nhashes){
 
 //long option, required arg?, flag, value
 struct option long_options[] = {
-	{"ksize",required_argument,0,'k'},
-	{"use-oq",no_argument,0,'u'},
-	{"set-oq",no_argument,0,'s'},
-	{"genomelen",required_argument,0,'g'},
+	{"ksize",required_argument,0,'k'}, //default: 31
+	{"use-oq",no_argument,0,'u'}, //default: off
+	{"set-oq",no_argument,0,'s'}, //default: off
+	{"genomelen",required_argument,0,'g'}, //estimated for bam input, required for fastq input
+	{"coverage",required_argument,0,'c'}, //default: estimated
 	{0, 0, 0, 0}
 };
 
 int main(int argc, char* argv[]){
 	int k = 31;
-	uint64_t genomelen = 0; //can est coverage by len / genomelen for fastq
-								   //or use index with bam, or estimate given coverage
-	uint coverage = 15; //if not given, will be estimated.
+	uint64_t genomelen = 0; //est w/ index with bam, w/ fq estimate w/ coverage
+	uint coverage = 0; //if not given, will be estimated.
 	bool set_oq = false;
 	bool use_oq = false;
 
 	int opt = 0;
 	int opt_idx = 0;
-	while((opt = getopt_long(argc,argv,"k:usg:",long_options, &opt_idx)) != -1){
+	while((opt = getopt_long(argc,argv,"k:usg:c:",long_options, &opt_idx)) != -1){
 		switch(opt){
 			case 'k':
-				k = optarg;
+				k = atoi(optarg);
 				break;
 			case 'u':
 				use_oq = true;
@@ -75,8 +75,10 @@ int main(int argc, char* argv[]){
 				set_oq = true;
 				break;
 			case 'g':
-				genomelen = optarg;
+				genomelen = std::stoull(std::string(optarg));
 				break;
+			case 'c':
+				coverage = std::stoul(optarg);
 			case '?':
 			default:
 				std::cerr << "Unknown argument " << opt << std::endl;
@@ -96,15 +98,13 @@ int main(int argc, char* argv[]){
 			std::cerr << "Warning: Extra argument " << argv[optind] << " ignored." << std::endl;
 		}
 	}
-	if(coverage = 0){
-		//TODO: add ability to specify coverage
+	if(coverage == 0){
 		//TODO: check this > 0
 	}
 
 	//TODO: flag to use and set OQ flag on BAMs;
 
 
-	long double alpha = 7.0l / (long double)coverage; // recommended by Lighter authors
 	long double sampler_desiredfpr = 0.01;
 	long double trusted_desiredfpr = 0.0005;
 
@@ -113,11 +113,10 @@ int main(int argc, char* argv[]){
 	hFILE* fp = hopen(filename.c_str(), "r");
 	if (hts_detect_format(fp, &fmt) < 0) {
 		//error
-		std::cerr << "Error opening file " << filename;
+		std::cerr << "Error opening file " << filename << std::endl;
 		hclose_abruptly(fp);
 		return 1;
 	}
-	hclose(fp);
 	bool is_bam = true;
 	if(fmt.format == bam || fmt.format == cram){
 		is_bam = true;
@@ -125,9 +124,31 @@ int main(int argc, char* argv[]){
 		is_bam = false;
 	} else {
 		//error
-		std::cerr << "Error: File format must be bam, cram, or fastq.";
+		std::cerr << "Error: File format must be bam, cram, or fastq." << std::endl;
+		hclose_abruptly(fp);
 		return 1;
 	}
+	long double alpha = 7.0l / (long double)coverage; // recommended by Lighter authors
+
+	//TODO: if genomelen is still 0, estimate it here.
+	if(genomelen == 0){
+		if(is_bam){
+			fp = hts_hopen(fp, filename.c_str(), "r");
+			h = sam_hdr_read(fp);
+			idx = sam_index_load(fp, filename.c_str());
+			if(idx == NULL){
+				std::cerr << "Error: unable to load index for file " << filename << std::endl;
+				hclose_abruptly(fp);
+				return 1;
+			}
+			for(int i = 0; i < sam_hdr_nref(h); ++i){
+				genomelen += sam_hdr_tid2len(header, i);
+			}
+		} else {
+			std::cerr << "Error: --genomelen must be specified if input is not a bam." << std::endl;
+		}
+	}
+	hclose(fp);
 
 	std::unique_ptr<htsiter::HTSFile> file;
 	file = std::move(open_file(filename, is_bam));
