@@ -9,7 +9,7 @@ namespace readutils{
 	std::unordered_map<std::string, std::string> CReadData::rg_to_pu{};
 	std::unordered_map<std::string, int> CReadData::rg_to_int{};
 
-	CReadData::CReadData(bam1_t* bamrecord){
+	CReadData::CReadData(bam1_t* bamrecord){ //TODO: flag to use OQ
 		this->seq = bam_seq_str(bamrecord);
 		this->qual.assign(bam_get_qual(bamrecord), bam_get_qual(bamrecord) + bamrecord->core.l_qseq);
 		if(bam_is_rev(bamrecord)){
@@ -21,7 +21,8 @@ namespace readutils{
 		this->rg = bam_aux2Z(bam_aux_get(bamrecord, "RG"));
 		if(rg_to_pu.count(this->rg) == 0){
 			rg_to_int[this->rg] = rg_to_int.size();
-			rg_to_pu[this->rg] = rg; //when loaded from the header this is actually a PU.
+			// we just need something unique here.
+			rg_to_pu[this->rg] = rg; //when loaded from the header this is actually a PU 
 		}
 		this->second = bamrecord->core.flag & 0x80;
 		this->errors.resize(bamrecord->core.l_qseq);

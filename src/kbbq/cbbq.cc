@@ -5,6 +5,7 @@
 #include <memory>
 #include <iostream>
 #include <htslib/hfile.h>
+#include <getopt.h>
 
 //opens file filename and returns a unique_ptr to the result.
 std::unique_ptr<htsiter::HTSFile> open_file(std::string filename, bool is_bam = true){
@@ -21,7 +22,7 @@ std::unique_ptr<htsiter::HTSFile> open_file(std::string filename, bool is_bam = 
 
 int check_args(int argc, char* argv[]){
 	if(argc < 2){
-		std::cerr << "Usage: " << argv[0] << " input.bam" << std::endl;
+		std::cerr << "Usage: " << argv[0] << " input.[bam,fq]" << std::endl;
 		return 1;
 	} else {
 		std::cerr << "Selected file: " << std::string(argv[1]) << std::endl;
@@ -43,16 +44,69 @@ bloom::bloomary_t init_bloomary(uint64_t nbits, int nhashes){
 	return ret;
 }
 
+//long option, required arg?, flag, value
+struct option long_options[] = {
+	{"ksize",required_argument,0,'k'},
+	{"use-oq",no_argument,0,'u'},
+	{"set-oq",no_argument,0,'s'},
+	{"genomelen",required_argument,0,'g'},
+	{0, 0, 0, 0}
+};
+
 int main(int argc, char* argv[]){
-	if (check_args(argc, argv) > 0){
+	int k = 31;
+	uint64_t genomelen = 0; //can est coverage by len / genomelen for fastq
+								   //or use index with bam, or estimate given coverage
+	uint coverage = 15; //if not given, will be estimated.
+	bool set_oq = false;
+	bool use_oq = false;
+
+	int opt = 0;
+	int opt_idx = 0;
+	while((opt = getopt_long(argc,argv,"k:usg:",long_options, &opt_idx)) != -1){
+		switch(opt){
+			case 'k':
+				k = optarg;
+				break;
+			case 'u':
+				use_oq = true;
+				break;
+			case 's':
+				set_oq = true;
+				break;
+			case 'g':
+				genomelen = optarg;
+				break;
+			case '?':
+			default:
+				std::cerr << "Unknown argument " << opt << std::endl;
+				return 1;
+				break;
+		}
+	}
+	if(genomelen <= 0){
+		std::cerr << "--genomelen (-g) must be provided and must be > 0" << std::endl;
 		return 1;
 	}
-	int k = 31;
-	uint64_t genomelen = 10000000;
+
+	std::string filename("-");
+	if(optind < argc){
+		filename = std::string(argv[optind]);
+		while(++optind < argc){
+			std::cerr << "Warning: Extra argument " << argv[optind] << " ignored." << std::endl;
+		}
+	}
+	if(coverage = 0){
+		//TODO: add ability to specify coverage
+		//TODO: check this > 0
+	}
+
+	//TODO: flag to use and set OQ flag on BAMs;
+
+
+	long double alpha = 7.0l / (long double)coverage; // recommended by Lighter authors
 	long double sampler_desiredfpr = 0.01;
 	long double trusted_desiredfpr = 0.0005;
-	long double alpha = .05;
-	std::string filename = std::string(argv[1]);
 
 	//see if we have a bam
 	htsFormat fmt;
@@ -96,7 +150,7 @@ int main(int argc, char* argv[]){
 	std::cerr << "Approximate false positive rate: " << fpr << std::endl;
 	if(fpr > .15){
 		std::cerr << "Error: false positive rate is too high. " <<
-			"Adjust parameters and try again." << std::endl;
+			"Increase genomelen parameter and try again." << std::endl;
 		return 1;
 	}
 
