@@ -4,6 +4,7 @@
 #include <iterator>
 #include <string>
 #include <random>
+#include <algorithm>
 #include <htslib/hts.h>
 #include <htslib/bgzf.h>
 #include <htslib/sam.h>
@@ -40,7 +41,9 @@ public:
 	hts_itr_t *itr;
 	bam1_t *r;
 	samFile *of;
-	BamFile(std::string filename){
+	bool use_oq;
+	bool set_oq;
+	BamFile(std::string filename, use_oq = false, set_oq = false): use_oq(use_oq), set_oq(set_oq){
 		r = bam_init1();
 		sf = sam_open(filename.c_str(), "r");
 	   	idx = sam_index_load(sf, filename.c_str());
@@ -59,7 +62,7 @@ public:
 
 	// to use: while (ret = BamFile.next() >= 0){//do something with this->r}
 	int next();
-	// return next read as a string. if there are no more, return the empty string.
+	// return next read sequence as a string. if there are no more, return the empty string.
 	std::string next_str();
 	//
 	readutils::CReadData get();

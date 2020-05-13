@@ -9,15 +9,45 @@ namespace readutils{
 	std::unordered_map<std::string, std::string> CReadData::rg_to_pu{};
 	std::unordered_map<std::string, int> CReadData::rg_to_int{};
 
-	CReadData::CReadData(bam1_t* bamrecord){ //TODO: flag to use OQ
+	CReadData::CReadData(bam1_t* bamrecord, bool use_oq){ //TODO: flag to use OQ
+		this->name = bam_get_qname(bamrecord);
 		this->seq = bam_seq_str(bamrecord);
-		this->qual.assign(bam_get_qual(bamrecord), bam_get_qual(bamrecord) + bamrecord->core.l_qseq);
+		if(use_oq){
+			uint8_t* oqdata = bam_aux_get(bamrecord, "OQ") // this will be null on error
+			//we should throw in that case
+			if(oqdata == NULL){
+				std::cerr << "Error: --use-oq was specified but unable to read OQ tag " << 
+				"on read " << this->name << std::endl
+				if(errno == ENOENT){
+					std::cerr << "OQ not found. Try again without the --use-oq option." << std::endl;
+				} else if(errno == EINVAL){
+					std::cerr << "Tag data is corrupt. Repair the tags and try again." << std::endl;
+				}
+				return 1;
+			}
+			std::string oq(bam_aux2Z(oqdata));
+			std::transform(oq.begin(), oq.end(), std::back_inserter(this->qual),
+				[](char c) -> int {return c - 33;});
+		} else {
+			this->qual.assign(bam_get_qual(bamrecord), bam_get_qual(bamrecord) + bamrecord->core.l_qseq);
+		}
 		if(bam_is_rev(bamrecord)){
 			std::reverse(this->seq.begin(), this->seq.end());
 			std::reverse(this->qual.begin(), this->qual.end());
 		}
 		this->skips.resize(bamrecord->core.l_qseq, 0);
-		this->name = bam_get_qname(bamrecord);
+		uint8_t* rgdata = bam_aux_get(bamrecord, "RG");
+		if(rgdata == NULL){
+			std::cerr << "Error: Unable to read RG tag on read " << this->name << std::endl;
+			if(errno == ENOENT){
+				std::cerr << "RG not found. " <<
+				"Every read in the BAM must have an RG tag; add tags with " <<
+				"samtools addreplacerg and try again." << std::endl;
+			} else if(errno == EINVAL){
+				std::cerr << "Tag data is corrupt. Repair the tags and try again." << std::endl;
+			}
+			return 1;
+		}
 		this->rg = bam_aux2Z(bam_aux_get(bamrecord, "RG"));
 		if(rg_to_pu.count(this->rg) == 0){
 			rg_to_int[this->rg] = rg_to_int.size();

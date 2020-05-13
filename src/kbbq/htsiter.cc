@@ -6,9 +6,21 @@ int BamFile::next(){return sam_itr_next(sf, itr, r);}
 	// return next read as a string. if there are no more, return the empty string.
 std::string BamFile::next_str(){return this->next() >= 0 ? readutils::bam_seq_str(r) : "";}
 //
-readutils::CReadData BamFile::get(){return readutils::CReadData(this->r);}
+readutils::CReadData BamFile::get(){return readutils::CReadData(this->r, use_oq);}
 //
-void BamFile::recalibrate(std::vector<int> qual){char* q = (char *)bam_get_qual(this->r); for(int i = 0; i < this->r->core.l_qseq; ++i){q[i] = (char)qual[i];}}
+void BamFile::recalibrate(std::vector<int> qual){
+	char* q = (char *)bam_get_qual(this->r);
+	if(set_oq){
+		std::string qstr(q, this->r->core.l_qseq);
+		std::transform(qstr.begin(), qstr.end(), qstr.begin(),
+			[](char c) -> char {return c + 33;}); //qual value to actual str
+		//returns 0 on success, -1 on fail. We should consider throwing if it fails.
+		int r = bam_aux_update_str(this->r, "OQ", qstr.length(), qstr.c_str());
+	}
+	for(int i = 0; i < this->r->core.l_qseq; ++i){
+		q[i] = (char)qual[i];
+	}
+}
 // TODO:: add a PG tag to the header
 int BamFile::open_out(std::string filename){this->of = sam_open(filename.c_str(), "wb"); return sam_hdr_write(this->of, this->h);}
 //

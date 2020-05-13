@@ -8,10 +8,10 @@
 #include <getopt.h>
 
 //opens file filename and returns a unique_ptr to the result.
-std::unique_ptr<htsiter::HTSFile> open_file(std::string filename, bool is_bam = true){
+std::unique_ptr<htsiter::HTSFile> open_file(std::string filename, bool is_bam = true, bool use_oq = false, bool set_oq = false){
 	std::unique_ptr<htsiter::HTSFile> f(nullptr);
 	if(is_bam){
-		f = std::move(std::unique_ptr<htsiter::BamFile>(new htsiter::BamFile(filename)));
+		f = std::move(std::unique_ptr<htsiter::BamFile>(new htsiter::BamFile(filename, use_oq, set_oq)));
 		// f.reset(new htsiter::BamFile(filename));
 	} else {
 		f = std::move(std::unique_ptr<htsiter::FastqFile>(new htsiter::FastqFile(filename)));
@@ -67,7 +67,7 @@ int main(int argc, char* argv[]){
 		switch(opt){
 			case 'k':
 				k = std::stoi(std::string(optarg));
-				if(k <= 0 || k > YAK_MAX_KMER){
+				if(k <= 0 || k > 32){
 					std::cerr << "Error: k must be <= 32 and > 0." << std::endl;
 				}
 				break;
@@ -89,10 +89,6 @@ int main(int argc, char* argv[]){
 				break;
 		}
 	}
-	if(genomelen <= 0){
-		std::cerr << "--genomelen (-g) must be provided and must be > 0" << std::endl;
-		return 1;
-	}
 
 	std::string filename("-");
 	if(optind < argc){
@@ -101,11 +97,6 @@ int main(int argc, char* argv[]){
 			std::cerr << "Warning: Extra argument " << argv[optind] << " ignored." << std::endl;
 		}
 	}
-	if(coverage == 0){
-		//TODO: check this > 0
-	}
-
-	//TODO: flag to use and set OQ flag on BAMs;
 
 
 	long double sampler_desiredfpr = 0.01;
@@ -131,30 +122,54 @@ int main(int argc, char* argv[]){
 		hclose_abruptly(fp);
 		return 1;
 	}
-	long double alpha = 7.0l / (long double)coverage; // recommended by Lighter authors
 
-	//TODO: if genomelen is still 0, estimate it here.
 	if(genomelen == 0){
 		if(is_bam){
+			std::cerr << "Estimating genome length" << std::endl;
 			fp = hts_hopen(fp, filename.c_str(), "r");
-			h = sam_hdr_read(fp);
-			idx = sam_index_load(fp, filename.c_str());
-			if(idx == NULL){
-				std::cerr << "Error: unable to load index for file " << filename << std::endl;
-				hclose_abruptly(fp);
-				return 1;
-			}
+			sam_hdr_t* h = sam_hdr_read(fp);
 			for(int i = 0; i < sam_hdr_nref(h); ++i){
 				genomelen += sam_hdr_tid2len(header, i);
+			}
+			if(genomelen == 0){
+				std::cerr << "Header does not contain genome information." <<
+					" Unable to estimate genome length; please provide it on the command line" <<
+					" using the --genomelen option." << std::endl;
+				return 1;
+			} else {
+				std::cerr << "Genome length is " << genomelen <<" bp." << std::endl;
 			}
 		} else {
 			std::cerr << "Error: --genomelen must be specified if input is not a bam." << std::endl;
 		}
 	}
 	hclose(fp);
-
 	std::unique_ptr<htsiter::HTSFile> file;
-	file = std::move(open_file(filename, is_bam));
+
+	if(coverage == 0){
+		std::cerr << "Estimating coverage." << std::endl;
+		uint64_t seqlen = 0;
+		file = std::move(open_file(filename, is_bam, set_oq, use_oq));
+		std::string seq();
+		while((seq = *file.next_str()) != ""){
+			seqlen += seq.length();
+		}
+		if (seqlen == 0){
+			std::cerr << "Error: total sequence length in file " << filename <<
+				" is 0. Check that the file isn't empty." << std::endl;
+			return 1;
+		}
+
+		coverage = seqlen/genomelen;
+		std::cerr << "Estimated coverage: " << coverage << std::endl;
+		if(coverage == 0){
+			std::cerr << "Error: estimated coverage is 0." << std::endl;
+			return 1;
+		}
+	}
+
+	long double alpha = 7.0l / (long double)coverage; // recommended by Lighter authors
+	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 
 	htsiter::KmerSubsampler subsampler(file.get(), k, alpha);
 	//load subsampled bf x
@@ -164,7 +179,6 @@ int main(int argc, char* argv[]){
 	recalibrateutils::add_kmers_to_bloom(subsampled_hashes, subsampled);
 
 	//calculate thresholds
-	//TODO: calculate p any kmer added to bloom filter
 	long double fpr = bloom::calculate_fpr(subsampled);
 	uint64_t hits = 0;
 	for(bloom::Bloom& b : subsampled){
@@ -192,19 +206,19 @@ int main(int argc, char* argv[]){
 	std::cerr << "]" << std::endl;
 
 	//get trusted kmers bf using subsampled bf
-	file = std::move(open_file(filename, is_bam));
+	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 	recalibrateutils::kmer_cache_t trusted_hashes = recalibrateutils::find_trusted_kmers(file.get(), subsampled, thresholds, k);
 	bloom::bloomary_t trusted = init_bloomary(bloom::numbits(genomelen*1.5, trusted_desiredfpr),
 		bloom::numhashes(trusted_desiredfpr));
 	recalibrateutils::add_kmers_to_bloom(trusted_hashes, trusted);
 
 	//use trusted kmers to find errors
-	file = std::move(open_file(filename, is_bam));
+	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 	covariateutils::CCovariateData data = recalibrateutils::get_covariatedata(file.get(), trusted, k);
 
 	//recalibrate reads and write to file
 	covariateutils::dq_t dqs = data.get_dqs();
-	file = std::move(open_file(filename, is_bam));
+	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 	recalibrateutils::recalibrate_and_write(file.get(), dqs, "-");
 	return 0;
 }

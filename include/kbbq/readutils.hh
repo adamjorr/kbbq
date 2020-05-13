@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <string>
+#include <errno.h>
 //
 #include <htslib/sam.h>
 #include <htslib/kseq.h>
@@ -39,7 +40,7 @@ namespace readutils{
 			static std::unordered_map<std::string, int> rg_to_int;
 		public:
 			CReadData(){}
-			CReadData(bam1_t* bamrecord);
+			CReadData(bam1_t* bamrecord, bool use_oq = false);
 			// hello?
 			CReadData(kseq::kseq_t* fastqrecord, std::string rg = "", int second = 2, std::string namedelimiter = "_");
 			std::string seq;
