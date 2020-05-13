@@ -55,7 +55,7 @@ struct option long_options[] = {
 };
 
 int main(int argc, char* argv[]){
-	int k = 31;
+	int k = 32;
 	uint64_t genomelen = 0; //est w/ index with bam, w/ fq estimate w/ coverage
 	uint coverage = 0; //if not given, will be estimated.
 	bool set_oq = false;
@@ -66,7 +66,10 @@ int main(int argc, char* argv[]){
 	while((opt = getopt_long(argc,argv,"k:usg:c:",long_options, &opt_idx)) != -1){
 		switch(opt){
 			case 'k':
-				k = atoi(optarg);
+				k = std::stoi(std::string(optarg));
+				if(k <= 0 || k > YAK_MAX_KMER){
+					std::cerr << "Error: k must be <= 32 and > 0." << std::endl;
+				}
 				break;
 			case 'u':
 				use_oq = true;
@@ -78,7 +81,7 @@ int main(int argc, char* argv[]){
 				genomelen = std::stoull(std::string(optarg));
 				break;
 			case 'c':
-				coverage = std::stoul(optarg);
+				coverage = std::stoul(std::string(optarg));
 			case '?':
 			default:
 				std::cerr << "Unknown argument " << opt << std::endl;
