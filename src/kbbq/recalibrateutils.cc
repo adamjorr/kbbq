@@ -11,7 +11,7 @@ kmer_cache_t subsample_kmers(KmerSubsampler& s, uint64_t chunksize){
 	kmer_cache_t ret;
 	ret.fill(std::vector<uint64_t>());
 	//the order here matters since we don't want to advance the iterator if we're chunked out
-	while(counted++ < chunksize && ((kmer = s.next_kmer()) != 0 || !s.readseq.empty())){
+	while(counted++ < chunksize && ((kmer = s.next()) != 0 || !s.readseq.empty())){
 		uint64_t prefix = kmer & ((1<<PREFIXBITS)-1);
 		ret[prefix].push_back(kmer);
 	}

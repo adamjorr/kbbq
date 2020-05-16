@@ -58,7 +58,7 @@ int FastqFile::write(){
 
 // KmerSubsampler
 
-//return the next kmer
+//return the next hashed kmer
 //once the file is finished iterating and there are no remaining kmers,
 //return 0. That means you should check readseq.empty() if you get a 0!
 uint64_t KmerSubsampler::next_kmer(){

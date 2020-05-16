@@ -43,7 +43,8 @@ public:
 	samFile *of;
 	bool use_oq;
 	bool set_oq;
-	BamFile(std::string filename, use_oq = false, set_oq = false): use_oq(use_oq), set_oq(set_oq){
+	BamFile(std::string filename, bool use_oq = false, bool set_oq = false):
+		use_oq(use_oq), set_oq(set_oq){
 		r = bam_init1();
 		sf = sam_open(filename.c_str(), "r");
 	   	idx = sam_index_load(sf, filename.c_str());
@@ -112,14 +113,16 @@ public:
 	KmerSubsampler(HTSFile* file, int k, double alpha): KmerSubsampler(file, k, alpha,  minion::create_seed_seq().GenerateOne()){}
 	KmerSubsampler(HTSFile* file, int k, double alpha, uint64_t seed): file(file), k(k), d(alpha) {rng.Seed(seed);}
 	
-	//return the next kmer
+	//return the next hashed kmer
 	//once the file is finished iterating and there are no remaining kmers,
 	//return 0. That means you should check readseq.empty() if you get a 0!
+	//if !readseq.empty() that means a kmer hashed to 0 but there are further kmers.
 	uint64_t next_kmer();
 
-	//return the next kmer that survives sampling
+	//return the next hashed kmer that survives sampling
 	//once there are no more kmers return 0.
 	// check to see if readseq.empty() if you get a 0 result!
+	//if !readseq.empty() that means a kmer hashed to 0 but there are further kmers.
 	uint64_t next();
 };
 

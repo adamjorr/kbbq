@@ -263,7 +263,7 @@ namespace bloom
 	int Bloom::insert(unsigned long long hash){
 		int ninserted = yak_bf_insert(this->bloom.get(), hash);
 		if(ninserted < this->bloom->n_hashes){
-			++ninserts;
+			this->ninserts++;
 		}
 		return ninserted;
 	}

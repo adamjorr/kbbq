@@ -13,17 +13,17 @@ namespace readutils{
 		this->name = bam_get_qname(bamrecord);
 		this->seq = bam_seq_str(bamrecord);
 		if(use_oq){
-			uint8_t* oqdata = bam_aux_get(bamrecord, "OQ") // this will be null on error
+			uint8_t* oqdata = bam_aux_get(bamrecord, "OQ"); // this will be null on error
 			//we should throw in that case
 			if(oqdata == NULL){
 				std::cerr << "Error: --use-oq was specified but unable to read OQ tag " << 
-				"on read " << this->name << std::endl
+				"on read " << this->name << std::endl;
 				if(errno == ENOENT){
 					std::cerr << "OQ not found. Try again without the --use-oq option." << std::endl;
 				} else if(errno == EINVAL){
 					std::cerr << "Tag data is corrupt. Repair the tags and try again." << std::endl;
 				}
-				return 1;
+				throw;
 			}
 			std::string oq(bam_aux2Z(oqdata));
 			std::transform(oq.begin(), oq.end(), std::back_inserter(this->qual),
@@ -46,7 +46,7 @@ namespace readutils{
 			} else if(errno == EINVAL){
 				std::cerr << "Tag data is corrupt. Repair the tags and try again." << std::endl;
 			}
-			return 1;
+			throw;
 		}
 		this->rg = bam_aux2Z(bam_aux_get(bamrecord, "RG"));
 		if(rg_to_pu.count(this->rg) == 0){
@@ -179,7 +179,7 @@ namespace readutils{
 		std::vector<int> in = overlapping[0];
 		std::vector<int> possible = overlapping[1];
 		for(int i = 0; i < errors.size(); ++i){
-			if(possible[i] > 31){std::cerr << possible[i] << " WTF! i: " << i << std::endl;}
+			if(possible[i] > k){std::cerr << possible[i] << "WARNING: Invalid i: " << i << std::endl;}
 			this->errors[i] = (in[i] <= thresholds[possible[i]] || this->qual[i] <= 6);
 		}
 	}
@@ -222,65 +222,69 @@ namespace readutils{
 			return;
 		}
 		//we're guaranteed to have a valid anchor now.
-		bool corrected; //whether there were any corrections
-		bool multiple; //whether there were any ties
+		bool corrected = false; //whether there were any corrections
+		bool multiple = false; //whether there were any ties
 		//right side
-		for(int i = anchor[1] + 1; i < this->seq.length();){
-			int start = i - k + 1; //seq containing all kmers that are affected
-			// size_t end = i + k < this->seq.length() ? i + k : std::string::npos; //find_longest_fix will take care of this
-			std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(this->seq.substr(start), trusted, k);
-			std::vector<char> fix = std::get<0>(lf);
-			int fixlen = std::get<1>(lf);
-			if(fixlen != 0){
-				this->seq[i] = fix[0];
-				this->errors[i] = true;
-				i += fixlen;
-				corrected = true;
-				if(fix.size() > 1){
-					multiple = true;
-				}
-			} else {
-				//couldn't find a fix; skip ahead and try again if long enough
-				i += k-1; //move ahead and make i = k-1 as the first base in the new kmer
-				if(this->seq.length() - i + k <= (seq.length()/2) || this->seq.length() - i + k <= 2*k ){
-					//sequence not long enough. end this side.
-					break;
+		if(anchor[1] != std::string::npos){
+			for(size_t i = anchor[1] + 1; i < this->seq.length();){
+				int start = i - k + 1; //seq containing all kmers that are affected
+				// size_t end = i + k < this->seq.length() ? i + k : std::string::npos; //find_longest_fix will take care of this
+				std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(this->seq.substr(start), trusted, k);
+				std::vector<char> fix = std::get<0>(lf);
+				int fixlen = std::get<1>(lf);
+				if(fixlen != 0){
+					this->seq[i] = fix[0];
+					this->errors[i] = true;
+					i += fixlen;
+					corrected = true;
+					if(fix.size() > 1){
+						multiple = true;
+					}
+				} else {
+					//couldn't find a fix; skip ahead and try again if long enough
+					i += k-1; //move ahead and make i = k-1 as the first base in the new kmer
+					if(this->seq.length() - i + k <= (seq.length()/2) || this->seq.length() - i + k <= 2*k ){
+						//sequence not long enough. end this side.
+						break;
+					}
 				}
 			}
 		}
 		//left side
-		//the bad base is at anchor[0]-1, then include the full kmer for that base.
-		std::string sub = this->seq.substr(0, anchor[0] - 1 + k);
-		std::string revcomped;
-		for(auto it = sub.rbegin(); it != sub.rend(); it++){
-				int c = seq_nt4_table[*it];
-				char d = c < 4 ? seq_nt16_str[seq_nt16_table[3 - c]] : c;
-				revcomped.push_back(d); //complement then turn to 4-bit encoded then turn to char
-			}
-		for(int i = anchor[0] - 1; i > 0;){ //iterating in original seq space
-			int j = anchor[0] - 1 + k - 1 - i; //iterating in reversed space
-			int end = i + k; //seq containing all kmers that are affected is [0, end) in original space
-			//but [j -k + 1, npos) in reverse space. 
-			std::string sub = revcomped.substr(j - k + 1); //get the right subsequence
-			std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(sub, trusted, k);
-			std::vector<char> fix = std::get<0>(lf);
-			int fixlen = std::get<1>(lf);
-			if(fixlen != 0){
-				int c = seq_nt4_table[fix[0]];
-				char d = c < 4 ? seq_nt16_str[seq_nt16_table[3 - c]] : c;
-				this->seq[j] = d;
-				this->errors[j] = true;
-				i -= fixlen;
-				corrected = true;
-				if(fix.size() > 1){
-					multiple = true;
+		if(anchor[0] != 0){
+			//the bad base is at anchor[0]-1, then include the full kmer for that base.
+			std::string sub = this->seq.substr(0, anchor[0] - 1 + k);
+			std::string revcomped;
+			for(auto it = sub.rbegin(); it != sub.rend(); it++){
+					int c = seq_nt4_table[*it];
+					char d = c < 4 ? seq_nt16_str[seq_nt16_table[3 - c]] : c;
+					revcomped.push_back(d); //complement then turn to 4-bit encoded then turn to char
 				}
-			} else {
-				//couldn't find a fix; skip ahead and try again if long enough
-				i -= k+1;
-				if(i + k <= (seq.length()/2) || i + k <= 2*k ){
-					//sequence not long enough. end this side.
-					break;
+			for(int i = anchor[0] - 1; i > 0;){ //iterating in original seq space
+				int j = anchor[0] - 1 + k - 1 - i; //iterating in reversed space
+				int end = i + k; //seq containing all kmers that are affected is [0, end) in original space
+				//but [j -k + 1, npos) in reverse space. 
+				std::string sub = revcomped.substr(j - k + 1); //get the right subsequence
+				std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(sub, trusted, k);
+				std::vector<char> fix = std::get<0>(lf);
+				int fixlen = std::get<1>(lf);
+				if(fixlen != 0){
+					int c = seq_nt4_table[fix[0]];
+					char d = c < 4 ? seq_nt16_str[seq_nt16_table[3 - c]] : c;
+					this->seq[j] = d;
+					this->errors[j] = true;
+					i -= fixlen;
+					corrected = true;
+					if(fix.size() > 1){
+						multiple = true;
+					}
+				} else {
+					//couldn't find a fix; skip ahead and try again if long enough
+					i -= k+1;
+					if(i + k <= (seq.length()/2) || i + k <= 2*k ){
+						//sequence not long enough. end this side.
+						break;
+					}
 				}
 			}
 		}
@@ -325,8 +329,8 @@ namespace readutils{
 			if(overcorrected_idx.size() > 0){
 				int start = overcorrected_idx[0]-k+1; //the beginningmost position to check
 				start = start >= 0? start : 0;
-				int end = *overcorrected_idx.end()+k-1; //the endmost position to check
-				end < this->seq.length() ? end : this->seq.length();
+				int end = overcorrected_idx.back()+k-1; //the endmost position to check
+				end = end < this->seq.length() ? end : this->seq.length();
 				//we start iteration but we need to unfix anything within k of an overcorrected position
 				//OR within k of one of those fixed positions.
 				for(int i = start; i < end; ++i){

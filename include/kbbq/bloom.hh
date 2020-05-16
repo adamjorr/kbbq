@@ -49,7 +49,7 @@ public:
 	~Bloom();
 	// int nshift; //size of hash; 9 <= nshift <= 55
 	// int nhashes; //number of hash functions; 4 seems OK
-	int ninserts;
+	uint64_t ninserts;
 	std::unique_ptr<yak_bf_t, std::function<void(yak_bf_t*)>> bloom;
 	//this is similar to yak_bf_insert()
 	int insert(unsigned long long hash); //try to insert the hash. return number of hashes that hit
