@@ -157,14 +157,6 @@ namespace readutils{
 		return this->name + suffix;
 	}
 
-	inline int CReadData::get_rg_int(){
-		return this->rg_to_int[this->rg];
-	}
-
-	inline std::string CReadData::get_pu(){
-		return this->rg_to_pu[this->rg];
-	}
-
 	std::vector<bool> CReadData::not_skipped_errors(){
 		std::vector<bool> unskipped = this->skips;
 		unskipped.flip();

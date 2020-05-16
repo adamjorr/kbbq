@@ -52,8 +52,8 @@ namespace readutils{
 			std::vector<bool> errors;
 			std::string str_qual();
 			std::string canonical_name();
-			int get_rg_int();
-			std::string get_pu();
+			inline int get_rg_int(){return this->rg_to_int[this->rg];}
+			inline std::string get_pu(){return this->rg_to_pu[this->rg];}
 			std::vector<bool> not_skipped_errors();
 			//fill errors attribute given the bloom filter and thresholds.
 			void infer_read_errors(bloom::bloomary_t& b, std::vector<int> thresholds, int k);

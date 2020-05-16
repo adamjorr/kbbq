@@ -55,7 +55,7 @@ struct option long_options[] = {
 };
 
 int main(int argc, char* argv[]){
-	int k = 32;
+	int k = 31;
 	uint64_t genomelen = 0; //est w/ index with bam, w/ fq estimate w/ coverage
 	uint coverage = 0; //if not given, will be estimated.
 	bool set_oq = false;
@@ -67,8 +67,8 @@ int main(int argc, char* argv[]){
 		switch(opt){
 			case 'k':
 				k = std::stoi(std::string(optarg));
-				if(k <= 0 || k > 32){
-					std::cerr << "Error: k must be <= 32 and > 0." << std::endl;
+				if(k <= 0 || k > YAK_MAX_KMER){
+					std::cerr << "Error: k must be <= " << YAK_MAX_KMER << " and > 0." << std::endl;
 				}
 				break;
 			case 'u':
@@ -82,6 +82,7 @@ int main(int argc, char* argv[]){
 				break;
 			case 'c':
 				coverage = std::stoul(std::string(optarg));
+				break;
 			case '?':
 			default:
 				std::cerr << "Unknown argument " << opt << std::endl;
@@ -126,11 +127,13 @@ int main(int argc, char* argv[]){
 	if(genomelen == 0){
 		if(is_bam){
 			std::cerr << "Estimating genome length" << std::endl;
-			fp = hts_hopen(fp, filename.c_str(), "r");
-			sam_hdr_t* h = sam_hdr_read(fp);
+			samFile* sf = hts_hopen(fp, filename.c_str(), "r");
+			sam_hdr_t* h = sam_hdr_read(sf);
 			for(int i = 0; i < sam_hdr_nref(h); ++i){
-				genomelen += sam_hdr_tid2len(header, i);
+				genomelen += sam_hdr_tid2len(h, i);
 			}
+			sam_hdr_destroy(h);
+			hts_close(sf);
 			if(genomelen == 0){
 				std::cerr << "Header does not contain genome information." <<
 					" Unable to estimate genome length; please provide it on the command line" <<
@@ -142,16 +145,20 @@ int main(int argc, char* argv[]){
 		} else {
 			std::cerr << "Error: --genomelen must be specified if input is not a bam." << std::endl;
 		}
+	} else {
+		if(hclose(fp) != 0){
+			std::cerr << "Error closing file!" << std::endl;
+		}
 	}
-	hclose(fp);
+	
 	std::unique_ptr<htsiter::HTSFile> file;
 
 	if(coverage == 0){
 		std::cerr << "Estimating coverage." << std::endl;
 		uint64_t seqlen = 0;
 		file = std::move(open_file(filename, is_bam, set_oq, use_oq));
-		std::string seq();
-		while((seq = *file.next_str()) != ""){
+		std::string seq("");
+		while((seq = file->next_str()) != ""){
 			seqlen += seq.length();
 		}
 		if (seqlen == 0){
@@ -159,7 +166,8 @@ int main(int argc, char* argv[]){
 				" is 0. Check that the file isn't empty." << std::endl;
 			return 1;
 		}
-
+		std::cerr << "Total Sequence length: " << seqlen << std::endl;
+		std::cerr << "Genome length: " << genomelen << std::endl;
 		coverage = seqlen/genomelen;
 		std::cerr << "Estimated coverage: " << coverage << std::endl;
 		if(coverage == 0){
@@ -171,9 +179,18 @@ int main(int argc, char* argv[]){
 	long double alpha = 7.0l / (long double)coverage; // recommended by Lighter authors
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 
+	std::cerr << "Sampling kmers at rate " << alpha << std::endl;
+
 	htsiter::KmerSubsampler subsampler(file.get(), k, alpha);
 	//load subsampled bf x
 	recalibrateutils::kmer_cache_t subsampled_hashes = recalibrateutils::subsample_kmers(subsampler);
+
+	uint64_t nsampled = 0;
+	for(std::vector<uint64_t>& v : subsampled_hashes){
+		nsampled += subsampled_hashes.size();
+	}
+	std::cerr << "Sampled " << nsampled << " kmers." << std::endl;
+
 	bloom::bloomary_t subsampled = init_bloomary(bloom::numbits(genomelen*1.5, sampler_desiredfpr),
 		bloom::numhashes(sampler_desiredfpr));
 	recalibrateutils::add_kmers_to_bloom(subsampled_hashes, subsampled);
