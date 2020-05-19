@@ -223,6 +223,7 @@ int main(int argc, char* argv[]){
 	std::cerr << "]" << std::endl;
 
 	//get trusted kmers bf using subsampled bf
+	std::cerr << "Finding trusted kmer" << std::endl;
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 	recalibrateutils::kmer_cache_t trusted_hashes = recalibrateutils::find_trusted_kmers(file.get(), subsampled, thresholds, k);
 	bloom::bloomary_t trusted = init_bloomary(bloom::numbits(genomelen*1.5, trusted_desiredfpr),
@@ -230,11 +231,15 @@ int main(int argc, char* argv[]){
 	recalibrateutils::add_kmers_to_bloom(trusted_hashes, trusted);
 
 	//use trusted kmers to find errors
+	std::cerr << "Finding errors" << std::endl;
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 	covariateutils::CCovariateData data = recalibrateutils::get_covariatedata(file.get(), trusted, k);
 
 	//recalibrate reads and write to file
+	std::cerr << "Training model" << std::endl;
 	covariateutils::dq_t dqs = data.get_dqs();
+
+	std::cerr << "Recalibrating file" << std::endl;
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 	recalibrateutils::recalibrate_and_write(file.get(), dqs, "-");
 	return 0;
