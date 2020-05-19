@@ -89,12 +89,12 @@ public:
 	BGZF* fh;
 	kseq::kseq_t* r;
 	BGZF* ofh;
-	FastqFile(std::string filename){
+	FastqFile(std::string filename): ofh(NULL){
 		fh = bgzf_open(filename.c_str(),"r");
 		r = kseq::kseq_init(fh);
 	};
 	~FastqFile(){
-		if(r != NULL){kseq_destroy(r);}
+		if(r != NULL){kseq::kseq_destroy(r);}
 		if(fh != NULL){bgzf_close(fh);}
 		if(ofh != NULL){bgzf_close(ofh);}
 	}
