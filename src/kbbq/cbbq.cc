@@ -187,7 +187,7 @@ int main(int argc, char* argv[]){
 
 	uint64_t nsampled = 0;
 	for(std::vector<uint64_t>& v : subsampled_hashes){
-		nsampled += subsampled_hashes.size();
+		nsampled += v.size();
 	}
 	std::cerr << "Sampled " << nsampled << " kmers." << std::endl;
 
