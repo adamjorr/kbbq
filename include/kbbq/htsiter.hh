@@ -13,6 +13,8 @@
 #include "readutils.hh"
 #include "kseq.hh"
 
+static_assert(HTS_VERSION >= 101000, "Your version of htslib is out of date. KBBQ requires version >= 10.1.");
+
 //fwd declare
 namespace readutils{
 	class CReadData;
