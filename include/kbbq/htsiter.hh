@@ -18,7 +18,7 @@
 #define HTS_VERSION 0 
 #endif
 
-static_assert(HTS_VERSION >= 101000, "Your version of htslib is out of date. KBBQ requires version >= 10.1.");
+static_assert(HTS_VERSION >= 101000, "Your version of htslib is out of date. KBBQ requires version >= 1.10.");
 
 //fwd declare
 namespace readutils{
