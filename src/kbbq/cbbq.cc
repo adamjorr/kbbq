@@ -223,7 +223,7 @@ int main(int argc, char* argv[]){
 	std::cerr << "]" << std::endl;
 
 	//get trusted kmers bf using subsampled bf
-	std::cerr << "Finding trusted kmer" << std::endl;
+	std::cerr << "Finding trusted kmers" << std::endl;
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 	recalibrateutils::kmer_cache_t trusted_hashes = recalibrateutils::find_trusted_kmers(file.get(), subsampled, thresholds, k);
 	bloom::bloomary_t trusted = init_bloomary(bloom::numbits(genomelen*1.5, trusted_desiredfpr),
