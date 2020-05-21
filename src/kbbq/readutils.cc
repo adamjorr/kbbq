@@ -63,20 +63,21 @@ namespace readutils{
 		this->seq = std::string(fastqrecord->seq.s);
 		// this->qual.assign(fastqrecord->qual.s, fastqrecord->qual.l);
 		std::string quals(fastqrecord->qual.s);
-		this->qual.assign(quals.begin(), quals.end());
-		this->skips.resize(this->seq.length());
+		std::transform(quals.begin(), quals.end(), std::back_inserter(this->qual),
+			[](char c) -> int {return c - 33;});
+		this->skips.resize(this->seq.length(), false);
 
 		std::string fullname(fastqrecord->name.s);
-		size_t delim = fullname.find(namedelimiter);
-		std::string first_name = fullname.substr(0, delim);
+		size_t current_pos = fullname.find(namedelimiter);
+		std::string first_name = fullname.substr(0, current_pos);
 
-		while(rg == "" && delim != std::string::npos){
+		while(rg == "" && current_pos != std::string::npos){
 			// if we need to find rg
-			fullname = fullname.substr(delim); //get the right part
-			delim = fullname.find(namedelimiter); //reset the delimiter
+			fullname = fullname.substr(current_pos+1); //get the right part, excluding the delimiter
+			current_pos = fullname.find(namedelimiter); //reset the delimiter; this is npos if no more fields
 			if(fullname.substr(0,3) == "RG:"){
-				size_t last_colon = fullname.find_last_of(":", delim); // delim is last char to search
-				rg = fullname.substr(last_colon, delim);
+				size_t last_colon = fullname.find_last_of(":", current_pos); // current_pos is last char to search
+				rg = fullname.substr(last_colon, current_pos);
 			}
 		}
 		this->rg = rg;
@@ -90,7 +91,7 @@ namespace readutils{
 		}
 		this->name = first_name;
 		this->second = second;
-		this->errors.resize(this->seq.length());
+		this->errors.resize(this->seq.length(), false);
 
 		if(rg_to_pu.count(this->rg) == 0){
 			rg_to_int[this->rg] = rg_to_int.size();
