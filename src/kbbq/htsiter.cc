@@ -42,7 +42,7 @@ readutils::CReadData FastqFile::get(){
 
 void FastqFile::recalibrate(std::vector<int> qual){
 	for(int i = 0; i < this->r->qual.l; ++i){
-		this->r->qual.s[i] = (char)qual[i];
+		this->r->qual.s[i] = (char)(qual[i]+33);
 	}
 }
 
@@ -52,7 +52,11 @@ int FastqFile::open_out(std::string filename){
 }
 
 int FastqFile::write(){
-	std::string s(std::string(this->r->name.s) + "\n" + std::string(this->r->seq.s) + "\n" + std::string(this->r->comment.s) + "\n" + std::string(this->r->qual.s) + "\n");
+	std::string name = this->r->name.s ? std::string(this->r->name.s) : "";
+	std::string seq = this->r->seq.s ? std::string(this->r->seq.s) : "";
+	std::string comment = this->r->comment.s ? std::string(this->r->comment.s) : "";
+	std::string qual = this->r->qual.s ? std::string(this->r->qual.s) : "";
+	std::string s(name + "\n" + seq + "\n" + comment + "\n" + qual + "\n");
 	return bgzf_write(ofh, s.c_str(), s.length());
 }
 
