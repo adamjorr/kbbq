@@ -47,7 +47,7 @@ void FastqFile::recalibrate(std::vector<int> qual){
 }
 
 int FastqFile::open_out(std::string filename){
-	ofh = bgzf_open(filename.c_str(),"w");
+	ofh = bgzf_open(filename.c_str(),"w"); //mode should be "wu" if uncompressed output is desired.
 	return ofh == 0 ? -1 : 0;
 }
 
@@ -56,7 +56,7 @@ int FastqFile::write(){
 	std::string seq = this->r->seq.s ? std::string(this->r->seq.s) : "";
 	std::string comment = this->r->comment.s ? std::string(this->r->comment.s) : "";
 	std::string qual = this->r->qual.s ? std::string(this->r->qual.s) : "";
-	std::string s(name + "\n" + seq + "\n" + comment + "\n" + qual + "\n");
+	std::string s("@" + name + "\n" + seq + "\n+" + comment + "\n" + qual + "\n");
 	return bgzf_write(ofh, s.c_str(), s.length());
 }
 
