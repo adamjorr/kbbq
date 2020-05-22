@@ -158,7 +158,7 @@ namespace readutils{
 		return this->name + suffix;
 	}
 
-	std::vector<bool> CReadData::not_skipped_errors(){
+	std::vector<bool> CReadData::not_skipped_errors() const{
 		std::vector<bool> unskipped = this->skips;
 		unskipped.flip();
 		for(size_t i = 0; i < unskipped.size(); i++){
@@ -167,7 +167,7 @@ namespace readutils{
 		return unskipped;
 	}
 
-	void CReadData::infer_read_errors(bloom::bloomary_t& b, std::vector<int> thresholds, int k){
+	void CReadData::infer_read_errors(const bloom::bloomary_t& b, const std::vector<int>& thresholds, int k){
 		std::array<std::vector<int>,2> overlapping = bloom::overlapping_kmers_in_bf(this->seq, b, k);
 		std::vector<int> in = overlapping[0];
 		std::vector<int> possible = overlapping[1];
@@ -177,7 +177,7 @@ namespace readutils{
 		}
 	}
 
-	int CReadData::correct_one(bloom::bloomary_t& t, int k){
+	int CReadData::correct_one(const bloom::bloomary_t& t, int k){
 		int best_fix_len = 0;
 		char best_fix_base;
 		size_t best_fix_pos = 0;
@@ -201,7 +201,7 @@ namespace readutils{
 	}
 
 	//this is a chonky boi
-	void CReadData::get_errors(bloom::bloomary_t& trusted, int k, int minqual){
+	void CReadData::get_errors(const bloom::bloomary_t& trusted, int k, int minqual){
 		std::string original_seq(this->seq);
 		std::array<size_t,2> anchor = bloom::find_longest_trusted_seq(this->seq, trusted, k);
 		if(anchor[0] == std::string::npos){ //no trusted kmers in this read.
@@ -343,8 +343,8 @@ namespace readutils{
 		this->seq = original_seq;
 	}
 
-	std::vector<int> CReadData::recalibrate(covariateutils::dq_t dqs, int minqual){
-		std::vector<int> recalibrated(this->seq.length());
+	std::vector<int> CReadData::recalibrate(const covariateutils::dq_t& dqs, int minqual) const{
+		std::vector<int> recalibrated(this->qual);
 		int rg = this->get_rg_int();
 		for(int i = 0; i < this->seq.length(); ++i){
 			int q = this->qual[i];

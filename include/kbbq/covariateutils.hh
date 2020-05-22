@@ -111,7 +111,7 @@ class CRGCovariate: public CCovariate
 public:
 	CRGCovariate(){}
 	CRGCovariate(size_t len): CCovariate(len){}
-	void consume_read(readutils::CReadData& read);
+	void consume_read(const readutils::CReadData& read);
 	rgdq_t delta_q(prior1_t prior);
 };
 
@@ -120,7 +120,7 @@ class CQCovariate: public std::vector<CCovariate>
 public:
 	CQCovariate(){}
 	CQCovariate(size_t rgs, size_t qlen): std::vector<CCovariate>(rgs, CCovariate(qlen)){}
-	void consume_read(readutils::CReadData& read);
+	void consume_read(const readutils::CReadData& read);
 	qscoredq_t delta_q(prior1_t prior);
 };
 
@@ -134,7 +134,7 @@ public:
 	CCycleCovariate(size_t rgs, size_t qlen, size_t cylen):
 		std::vector<std::vector<cycle_t>>(rgs, std::vector<cycle_t>(qlen, cycle_t({CCovariate(cylen),CCovariate(cylen)})))
 		{}
-	void consume_read(readutils::CReadData& read);
+	void consume_read(const readutils::CReadData& read);
 	cycledq_t delta_q(prior2_t prior);
 };
 
@@ -145,7 +145,7 @@ public:
 	CDinucCovariate(size_t rgs, size_t qlen, size_t dilen):
 		std::vector<std::vector<CCovariate>>(rgs, std::vector<CCovariate>(qlen, CCovariate(dilen)))
 		{}
-	void consume_read(readutils::CReadData& read, int minscore = 6);
+	void consume_read(const readutils::CReadData& read, int minscore = 6);
 	dinucdq_t delta_q(prior2_t prior);
 };
 
@@ -158,7 +158,7 @@ protected:
 	CDinucCovariate dicov;
 public:
 	CCovariateData(){};
-	void consume_read(readutils::CReadData& read, int minscore = 6);
+	void consume_read(const readutils::CReadData& read, int minscore = 6);
 	dq_t get_dqs();
 };
 

@@ -53,8 +53,8 @@ public:
 	std::unique_ptr<yak_bf_t, std::function<void(yak_bf_t*)>> bloom;
 	//this is similar to yak_bf_insert()
 	int insert(unsigned long long hash); //try to insert the hash. return number of hashes that hit
-	int query_n(unsigned long long hash); //return the number of hashes that hit but don't insert.
-	inline bool query(unsigned long long hash);
+	int query_n(unsigned long long hash) const; //return the number of hashes that hit but don't insert.
+	inline bool query(unsigned long long hash) const;
 	double fprate(unsigned long long n); //fprate given approximate number of times bf was loaded.
 };
 
@@ -76,28 +76,28 @@ std::vector<uint64_t> hash_seq(std::string seq, int k);
 //htsiter::KmerSubsampler is the prefferred way to do this.
 void subsample_and_insert(bloomary_t& bfs, std::vector<uint64_t> hashes, double alpha);
 
-std::array<std::vector<int>,2> overlapping_kmers_in_bf(std::string seq, bloomary_t& b, int k = 31);
+std::array<std::vector<int>,2> overlapping_kmers_in_bf(std::string seq, const bloomary_t& b, int k = 31);
 
 //return the total number of kmers in b
-int nkmers_in_bf(std::string seq, bloomary_t& b, int k);
+int nkmers_in_bf(std::string seq, const bloomary_t& b, int k);
 
 //return the INCLUSIVE indices bounding the largest stretch of trusted sequence
 //if the first value is -1, there are no trusted kmers.
 //if the 2nd value is -1 (== std::string::npos), until the end of the string is trusted.
 //thus the whole string being trusted looks like {0, std::string::npos}
 //while no part of the string being trusted looks like {std::string::npos, std::string::npos}
-std::array<size_t,2> find_longest_trusted_seq(std::string seq, bloomary_t& b, int k);
+std::array<size_t,2> find_longest_trusted_seq(std::string seq, const bloomary_t& b, int k);
 
 //find the longest possible fix for the kmer at position (k-1) until the end
 //return the best character (multiple in case of a tie) and the length of the fix.
 //if the length of the fix is 0, no fix was found and correction should end.
-std::pair<std::vector<char>, int> find_longest_fix(std::string seq, bloomary_t& t, int k);
+std::pair<std::vector<char>, int> find_longest_fix(std::string seq, const bloomary_t& t, int k);
 
 //calculate the false positive rate of the given bloom array.
-long double calculate_fpr(bloomary_t& bf);
+long double calculate_fpr(const bloomary_t& bf);
 
 //given the sampling rate, calculate the probability any kmer is in the array.
-long double calculate_phit(bloomary_t& bf, long double alpha);
+long double calculate_phit(const bloomary_t& bf, long double alpha);
 
 //given the number of inserts and the desired fpr, calculate the total size of the hash needed
 uint64_t numbits(uint64_t numinserts, long double fpr);

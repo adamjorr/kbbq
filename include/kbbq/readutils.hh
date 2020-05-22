@@ -22,7 +22,7 @@ namespace readutils{
 
 	static int8_t complement[16] = { 0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15 };
 
-	int correction_len(bloom::bloomary_t& t, int k);
+	// int correction_len(const bloom::bloomary_t& t, int k);
 
 	//get fwd-orientation read string
 	inline std::string bam_seq_str(bam1_t* bamrecord){
@@ -52,16 +52,16 @@ namespace readutils{
 			std::vector<bool> errors;
 			std::string str_qual();
 			std::string canonical_name();
-			inline int get_rg_int(){return this->rg_to_int[this->rg];}
-			inline std::string get_pu(){return this->rg_to_pu[this->rg];}
-			std::vector<bool> not_skipped_errors();
+			inline int get_rg_int() const{return this->rg_to_int[this->rg];}
+			inline std::string get_pu() const{return this->rg_to_pu[this->rg];}
+			std::vector<bool> not_skipped_errors() const;
 			//fill errors attribute given the bloom filter and thresholds.
-			void infer_read_errors(bloom::bloomary_t& b, std::vector<int> thresholds, int k);
+			void infer_read_errors(const bloom::bloomary_t& b, const std::vector<int>& thresholds, int k);
 			//fix one error and return the length of kmers it fixed
-			int correct_one(bloom::bloomary_t& t, int k);
+			int correct_one(const bloom::bloomary_t& t, int k);
 			static void load_rgs_from_bamfile(bam_hdr_t* header);
-			void get_errors(bloom::bloomary_t& trusted, int k, int minqual = 6);
-			std::vector<int> recalibrate(covariateutils::dq_t dqs, int minqual = 6);
+			void get_errors(const bloom::bloomary_t& trusted, int k, int minqual = 6);
+			std::vector<int> recalibrate(const covariateutils::dq_t& dqs, int minqual = 6) const;
 
 	};
 }

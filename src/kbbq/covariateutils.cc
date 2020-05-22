@@ -19,7 +19,7 @@ namespace covariateutils{
 		(*this)[idx][1] += value[1];
 	}
 
-	void CRGCovariate::consume_read(readutils::CReadData& read){
+	void CRGCovariate::consume_read(const readutils::CReadData& read){
 		int rg = read.get_rg_int();
 		if(this->size() <= rg){this->resize(rg+1);}
 		std::vector<bool> nse = read.not_skipped_errors();
@@ -50,7 +50,7 @@ namespace covariateutils{
 		return dq;
 	}
 
-	void CQCovariate::consume_read(readutils::CReadData& read){
+	void CQCovariate::consume_read(const readutils::CReadData& read){
 		int rg = read.get_rg_int();
 		int q;
 		if(this->size() <= rg){this->resize(rg+1);}
@@ -87,7 +87,7 @@ namespace covariateutils{
 		return dq;
 	}
 
-	void CCycleCovariate::consume_read(readutils::CReadData& read){
+	void CCycleCovariate::consume_read(const readutils::CReadData& read){
 		int rg = read.get_rg_int();
 		int q;
 		int cycle;
@@ -132,7 +132,7 @@ namespace covariateutils{
 		return dq;
 	}
 
-	void CDinucCovariate::consume_read(readutils::CReadData& read, int minscore){
+	void CDinucCovariate::consume_read(const readutils::CReadData& read, int minscore){
 		int rg = read.get_rg_int();
 		if(this->size() <= rg){this->resize(rg+1);}
 		int q;
@@ -176,7 +176,7 @@ namespace covariateutils{
 		return dq;
 	}
 
-	void CCovariateData::consume_read(readutils::CReadData& read, int minscore){
+	void CCovariateData::consume_read(const readutils::CReadData& read, int minscore){
 		rgcov.consume_read(read);
 		qcov.consume_read(read);
 		cycov.consume_read(read);

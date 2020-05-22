@@ -8,7 +8,7 @@ std::string BamFile::next_str(){return this->next() >= 0 ? readutils::bam_seq_st
 //
 readutils::CReadData BamFile::get(){return readutils::CReadData(this->r, use_oq);}
 //
-void BamFile::recalibrate(std::vector<int> qual){
+void BamFile::recalibrate(const std::vector<int>& qual){
 	char* q = (char *)bam_get_qual(this->r);
 	if(set_oq){
 		std::string qstr(q, this->r->core.l_qseq);
@@ -40,7 +40,7 @@ readutils::CReadData FastqFile::get(){
 	return readutils::CReadData(this->r);
 }
 
-void FastqFile::recalibrate(std::vector<int> qual){
+void FastqFile::recalibrate(const std::vector<int>& qual){
 	for(int i = 0; i < this->r->qual.l; ++i){
 		this->r->qual.s[i] = (char)(qual[i]+33);
 	}
@@ -52,10 +52,14 @@ int FastqFile::open_out(std::string filename){
 }
 
 int FastqFile::write(){
-	std::string name = this->r->name.s ? std::string(this->r->name.s) : "";
-	std::string seq = this->r->seq.s ? std::string(this->r->seq.s) : "";
-	std::string comment = this->r->comment.s ? std::string(this->r->comment.s) : "";
-	std::string qual = this->r->qual.s ? std::string(this->r->qual.s) : "";
+	std::string name = ks_c_str(&this->r->name);
+	std::string seq = ks_c_str(&this->r->seq);
+	std::string comment = ks_c_str(&this->r->comment);
+	std::string qual = ks_c_str(&this->r->qual);
+	// std::string name = this->r->name.s ? std::string(this->r->name.s) : "";
+	// std::string seq = this->r->seq.s ? std::string(this->r->seq.s) : "";
+	// std::string comment = this->r->comment.s ? std::string(this->r->comment.s) : "";
+	// std::string qual = this->r->qual.s ? std::string(this->r->qual.s) : "";
 	std::string s("@" + name + "\n" + seq + "\n+" + comment + "\n" + qual + "\n");
 	return bgzf_write(ofh, s.c_str(), s.length());
 }

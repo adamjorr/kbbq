@@ -37,7 +37,7 @@ namespace bloom
 		}
 	}
 
-	std::array<std::vector<int>,2> overlapping_kmers_in_bf(std::string seq, bloomary_t& b, int k){
+	std::array<std::vector<int>,2> overlapping_kmers_in_bf(std::string seq, const bloomary_t& b, int k){
 		int i, l; //i is the character index, l is the length of the current stretch of non-N bases
 		uint64_t x[2];
 		uint64_t mask = (1ULL<<k*2) - 1;
@@ -109,7 +109,7 @@ namespace bloom
 		return ret;
 	}
 
-	int nkmers_in_bf(std::string seq, bloomary_t& b, int k){
+	int nkmers_in_bf(std::string seq, const bloomary_t& b, int k){
 		std::vector<uint64_t> hashes = hash_seq(seq, k);
 		int c = 0;
 		for(uint64_t h: hashes){
@@ -120,7 +120,7 @@ namespace bloom
 		return c;
 	}
 
-	std::array<size_t, 2> find_longest_trusted_seq(std::string seq, bloomary_t& b, int k){
+	std::array<size_t, 2> find_longest_trusted_seq(std::string seq,const bloomary_t& b, int k){
 		std::vector<uint64_t> hashes = bloom::hash_seq(seq, k);
 		size_t i, l, n;
 		size_t anchor_start, anchor_end, anchor_l, anchor_current;
@@ -169,7 +169,7 @@ namespace bloom
 		}
 	}
 
-	std::pair<std::vector<char>, int> find_longest_fix(std::string seq, bloomary_t& t, int k){
+	std::pair<std::vector<char>, int> find_longest_fix(std::string seq, const bloomary_t& t, int k){
 		//this function is probably not very efficient.
 		size_t i;
 		int l;
@@ -268,7 +268,7 @@ namespace bloom
 		return ninserted;
 	}
 
-	int Bloom::query_n(unsigned long long hash){
+	int Bloom::query_n(unsigned long long hash) const{
 		int x = this->bloom->n_shift - YAK_BLK_SHIFT; // the bloom filter size
 		unsigned long long y = hash & ((1ULL<<x)-1); // fit the hash into the bloom filter;
 		//discard the beginning (which determines which filter the hash goes into to begin with)
@@ -289,7 +289,7 @@ namespace bloom
 		return count;
 	}
 
-	inline bool Bloom::query(unsigned long long hash){
+	inline bool Bloom::query(unsigned long long hash) const{
 		return (this->query_n(hash) == this->bloom->n_hashes);
 	}
 
@@ -305,11 +305,11 @@ namespace bloom
 		return floor(1.0 * (std::pow(2,shift)) / n * log(2));
 	}
 
-	long double calculate_fpr(bloomary_t& bf){
+	long double calculate_fpr(const bloomary_t& bf){
 		uint64_t m = 0; // bf[0].nshift; //number of bits
 		int k = 0; //bf[0].nhashes; //number of hashes; we take an average and round i thnk
 		uint64_t n = 0; //number of insertions
-		for(Bloom& b : bf){
+		for(const Bloom& b : bf){
 			m += pow(2, b.bloom->n_shift);
 			k += b.bloom->n_hashes;
 			n += b.ninserts;
@@ -318,7 +318,7 @@ namespace bloom
 		return pow(1.0l - exp(-(long double)k * (long double)n / (long double)m), (long double)k); // (1 - exp(-kn/m))^k
 	}
 
-	long double calculate_phit(bloomary_t& bf, long double alpha){
+	long double calculate_phit(const bloomary_t& bf, long double alpha){
 		long double fpr = calculate_fpr(bf);
 		double exponent = alpha < 0.1 ? 0.2 / alpha : 2;
 		long double pa = 1 - pow(1-alpha,exponent);

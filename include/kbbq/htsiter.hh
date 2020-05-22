@@ -9,6 +9,7 @@
 #include <htslib/bgzf.h>
 #include <htslib/sam.h>
 #include <htslib/kseq.h>
+#include <htslib/kstring.h>
 #include <minion.hpp>
 #include "readutils.hh"
 #include "kseq.hh"
@@ -35,7 +36,7 @@ public:
 	virtual int next()=0;
 	virtual std::string next_str()=0;
 	virtual readutils::CReadData get()=0;
-	virtual void recalibrate(std::vector<int> qual)=0;
+	virtual void recalibrate(const std::vector<int>& qual)=0;
 	virtual int open_out(std::string filename)=0; //open an output file so it can be written to later.
 	virtual int write()=0; //write the current read to the opened file.
 };
@@ -75,7 +76,7 @@ public:
 	//
 	readutils::CReadData get();
 	//
-	void recalibrate(std::vector<int> qual);
+	void recalibrate(const std::vector<int>& qual);
 	// TODO:: add a PG tag to the header
 	int open_out(std::string filename);
 	//
@@ -101,7 +102,7 @@ public:
 	int next();
 	std::string next_str();
 	readutils::CReadData get();
-	void recalibrate(std::vector<int> qual);
+	void recalibrate(const std::vector<int>& qual);
 	int open_out(std::string filename);
 	int write();
 };

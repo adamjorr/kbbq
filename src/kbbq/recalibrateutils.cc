@@ -19,7 +19,7 @@ kmer_cache_t subsample_kmers(KmerSubsampler& s, uint64_t chunksize){
 }
 
 //this is a good target for multithreading ;)
-void add_kmers_to_bloom(kmer_cache_t& kmers, bloom::bloomary_t& filters){
+void add_kmers_to_bloom(const kmer_cache_t& kmers, bloom::bloomary_t& filters){
 	for(int i = 0; i < (1<<PREFIXBITS); ++i){
 		for(uint64_t kmer : kmers[i]){
 			filters[i].insert(kmer >> PREFIXBITS); //remove the suffix and put into the filter
@@ -27,7 +27,7 @@ void add_kmers_to_bloom(kmer_cache_t& kmers, bloom::bloomary_t& filters){
 	}
 }
 
-kmer_cache_t find_trusted_kmers(HTSFile* file, bloom::bloomary_t& sampled, std::vector<int> thresholds, int k, uint64_t chunksize){
+kmer_cache_t find_trusted_kmers(HTSFile* file, const bloom::bloomary_t& sampled, std::vector<int> thresholds, int k, uint64_t chunksize){
 	uint64_t counted = 0;
 	kmer_cache_t ret;
 	ret.fill(std::vector<uint64_t>());
@@ -63,7 +63,7 @@ kmer_cache_t find_trusted_kmers(HTSFile* file, bloom::bloomary_t& sampled, std::
 	return ret;
 }
 
-covariateutils::CCovariateData get_covariatedata(HTSFile* file, bloom::bloomary_t& trusted, int k){
+covariateutils::CCovariateData get_covariatedata(HTSFile* file, const bloom::bloomary_t& trusted, int k){
 	covariateutils::CCovariateData data;
 	while(file->next() >= 0){
 		readutils::CReadData read = file->get();
@@ -73,7 +73,7 @@ covariateutils::CCovariateData get_covariatedata(HTSFile* file, bloom::bloomary_
 	return data;
 }
 
-void recalibrate_and_write(HTSFile* in, covariateutils::dq_t dqs, std::string outfn){
+void recalibrate_and_write(HTSFile* in, const covariateutils::dq_t& dqs, std::string outfn){
 	if(in->open_out(outfn) < 0){
 		//error!! TODO
 		return;
