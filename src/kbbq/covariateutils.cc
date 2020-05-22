@@ -8,7 +8,7 @@ namespace covariateutils{
 		if(j >= normal_prior.size()){
 			for(int i = normal_prior.size(); i < j+1; ++i){
 				//we might need to do something here to handle over/underflow but YOLO
-				normal_prior.push_back(std::log(.9l * std::exp(-(std::pow(((long double)i/.5),2))/2)));
+				normal_prior.push_back(std::log(.9l * std::exp(-(std::pow(((long double)i/.5l),2.0l))/2.0l)));
 			}
 		}
 		return normal_prior[j];
@@ -33,7 +33,7 @@ namespace covariateutils{
 		rgdq_t dq(this->size());
 		for(int i = 0; i < this->size(); ++i){ //i is rgs here
 			int map_q = 0; //maximum a posteriori q
-			int best_posterior = 0;
+			long double best_posterior = 0;
 			for(int possible = 0; possible < MAXQ+1; possible++){
 				int diff = std::abs(prior[i] - possible);
 				long double prior_prob = NormalPrior::get_normal_prior(diff);
