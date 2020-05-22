@@ -80,8 +80,8 @@ void recalibrate_and_write(HTSFile* in, covariateutils::dq_t dqs, std::string ou
 	}
 	while(in->next() >= 0){
 		readutils::CReadData read = in->get();
-		read.recalibrate(dqs);
-		in->recalibrate(read.qual);
+		std::vector<int> newquals = read.recalibrate(dqs);
+		in->recalibrate(newquals);
 		if(in->write() < 0){
 			//error! TODO
 			return;
