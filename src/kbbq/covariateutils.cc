@@ -197,7 +197,7 @@ namespace covariateutils{
 		std::vector<long double> expected_errors(this->qcov.size(),0);
 		meanq_t meanq(this->qcov.size(),0);
 		for(int rg = 0; rg < this->qcov.size(); ++rg){
-			for(int q = minscore; q < this->qcov[rg].size(); ++q){
+			for(int q = 0; q < this->qcov[rg].size(); ++q){
 				expected_errors[rg] += (recalibrateutils::q_to_p(q) * this->qcov[rg][q][1]);
 			}
 			meanq[rg] = recalibrateutils::p_to_q(expected_errors[rg] / this->rgcov[rg][1]);
