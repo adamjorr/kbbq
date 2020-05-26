@@ -244,16 +244,23 @@ int main(int argc, char* argv[]){
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 	covariateutils::CCovariateData data = recalibrateutils::get_covariatedata(file.get(), trusted, k);
 
+	std::vector<std::string> rgvals(readutils::CReadData::rg_to_int.size(), "");
+	for(auto i : readutils::CReadData::rg_to_int){
+		rgvals[i.second] = i.first;
+	}
+
 	std::cerr << "Covariate data:" << std::endl;
 	std::cerr << "rgcov:";
 	for(int i = 0; i < data.rgcov.size(); ++i){ //rgcov[rg][0] = errors
-		std::cerr << i << ": {" << data.rgcov[i][0] << ", " << data.rgcov[i][1] << "}" << std::endl;
+		std::cerr << i << ": " << rgvals[i] << " {" << data.rgcov[i][0] << ", " << data.rgcov[i][1] << "}" << std::endl;
 	}
 	std::cerr << "qcov:" << "(" << data.qcov.size() << ")" << std::endl;
 	for(int i = 0; i < data.qcov.size(); ++i){
-		std::cerr << i << "(" << data.qcov[i].size() << ")" << ": [";
+		std::cerr << i << " " << rgvals[i] << "(" << data.qcov[i].size() << ")" << ": [";
 		for(int j = 0; j < data.qcov[i].size(); ++j){
-			std::cerr << "{ " << data.qcov[i][j][0] << ", " << data.qcov[i][j][1] << "}";
+			if(data.qcov[i][j][1] != 0){
+				std::cerr << j << ":{" << data.qcov[i][j][0] << ", " << data.qcov[i][j][1] << "} ";
+			}
 		}
 		std::cerr << "]" << std::endl;
 	}

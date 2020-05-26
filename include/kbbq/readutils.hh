@@ -35,10 +35,9 @@ namespace readutils{
 	}
 
 	class CReadData{
-		private:
+		public:
 			static std::unordered_map<std::string, std::string> rg_to_pu;
 			static std::unordered_map<std::string, int> rg_to_int;
-		public:
 			CReadData(){}
 			CReadData(bam1_t* bamrecord, bool use_oq = false);
 			// hello?
