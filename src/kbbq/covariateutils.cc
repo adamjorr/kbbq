@@ -7,8 +7,11 @@ namespace covariateutils{
 	long double NormalPrior::get_normal_prior(size_t j){
 		if(j >= normal_prior.size()){
 			for(int i = normal_prior.size(); i < j+1; ++i){
-				//we might need to do something here to handle over/underflow but YOLO
+				errno = 0;
 				normal_prior.push_back(std::log(.9l * std::exp(-(std::pow(((long double)i/.5l),2.0l))/2.0l)));
+				if(errno != 0){ //if an underflow happens just set the prior to smallest possible #
+					normal_prior[i] = std::numeric_limits<long double>::lowest();
+				}
 			}
 		}
 		return normal_prior[j];
