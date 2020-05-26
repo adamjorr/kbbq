@@ -164,7 +164,7 @@ public:
 	CDinucCovariate dicov;
 	CCovariateData(){};
 	void consume_read(readutils::CReadData& read, int minscore = 6);
-	dq_t get_dqs(int minscore = 6);
+	dq_t get_dqs();
 };
 
 }

@@ -192,7 +192,7 @@ namespace covariateutils{
 		dicov.consume_read(read, minscore);
 	}
 
-	dq_t CCovariateData::get_dqs(int minscore){
+	dq_t CCovariateData::get_dqs(){
 		dq_t dq;
 		std::vector<long double> expected_errors(this->qcov.size(),0);
 		meanq_t meanq(this->qcov.size(),0);
