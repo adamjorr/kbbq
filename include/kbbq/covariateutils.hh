@@ -7,6 +7,7 @@
 #include <cmath>
 #include <random>
 #include <array>
+#include <limits>
 #include "readutils.hh"
 #include "recalibrateutils.hh"
 
@@ -50,14 +51,14 @@ def _logpmf(self, x, n, p):
     return combiln + special.xlogy(k, p) + special.xlog1py(n-k, -p)
 */
 
-inline long double log_binom_pmf(long long k, long long n, long double p){
+inline long double log_binom_pmf(unsigned long long k, unsigned long long n, long double p){
 	// k+=1; //+1/+2 correction
 	// n+=2;
 	long double coefficient = (std::lgamma(n+1) - (std::lgamma(k+1) + std::lgamma(n-k+1)));
 	return coefficient + (long double)k * std::log(p) + (long double)(n-k) * std::log1p(-p);
 }
 
-inline std::vector<long double> log_binom_cdf(long long k, long double p){
+inline std::vector<long double> log_binom_cdf(unsigned long long k, long double p){
 	std::vector<long double> ret(k+1);
 	ret[0] = log_binom_pmf(0,k,p);
 	for(int i = 1; i <= k; ++i){
@@ -67,7 +68,7 @@ inline std::vector<long double> log_binom_cdf(long long k, long double p){
 }
 
 //return vector of each k (k < n) 
-inline std::vector<int> calculate_thresholds(long long k, long double p, long double quartile = .995l){
+inline std::vector<int> calculate_thresholds(unsigned long long k, long double p, long double quartile = .995l){
 	std::vector<int> threshold(k+1,0);
 	threshold[0] = 0;
 	for(int i = 1; i <= k; ++i){
@@ -96,12 +97,12 @@ inline std::array<char, 2> int_to_dinuc(int8_t dinuc){
 	return x;
 }
 
-typedef std::array<long long, 2> covariate_t;
+typedef std::array<unsigned long long, 2> covariate_t;
 
 class CCovariate: public std::vector<covariate_t>
 {
 public:
-	CCovariate(){}
+	CCovariate(): std::vector<covariate_t>(){}
 	CCovariate(size_t len): std::vector<covariate_t>(len) {}
 	void increment(size_t idx, covariate_t value);
 };
@@ -151,15 +152,19 @@ public:
 
 class CCovariateData
 {
-protected:
+// protected:
+// 	CRGCovariate rgcov;
+// 	CQCovariate qcov;
+// 	CCycleCovariate cycov;
+// 	CDinucCovariate dicov;
+public:
 	CRGCovariate rgcov;
 	CQCovariate qcov;
 	CCycleCovariate cycov;
 	CDinucCovariate dicov;
-public:
 	CCovariateData(){};
-	void consume_read(const readutils::CReadData& read, int minscore = 6);
-	dq_t get_dqs();
+	void consume_read(readutils::CReadData& read, int minscore = 6);
+	dq_t get_dqs(int minscore = 6);
 };
 
 }

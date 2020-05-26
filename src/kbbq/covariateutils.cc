@@ -22,9 +22,11 @@ namespace covariateutils{
 	void CRGCovariate::consume_read(const readutils::CReadData& read){
 		int rg = read.get_rg_int();
 		if(this->size() <= rg){this->resize(rg+1);}
-		std::vector<bool> nse = read.not_skipped_errors();
+		// std::vector<bool> nse = read.not_skipped_errors();
 		for(size_t i = 0; i < read.skips.size(); ++i){
-			this->increment(rg, std::array<long long,2>({nse[i], read.skips[i]}));
+			if(!read.skips[i]){
+				this->increment(rg, std::array<unsigned long long,2>({read.errors[i], 1}));
+			}
 		}
 	}
 
@@ -33,8 +35,8 @@ namespace covariateutils{
 		rgdq_t dq(this->size());
 		for(int i = 0; i < this->size(); ++i){ //i is rgs here
 			int map_q = 0; //maximum a posteriori q
-			long double best_posterior = 0;
-			for(int possible = 0; possible < MAXQ+1; possible++){
+			long double best_posterior = std::numeric_limits<long double>::lowest();
+			for(int possible = 0; possible < MAXQ+1; ++possible){
 				int diff = std::abs(prior[i] - possible);
 				long double prior_prob = NormalPrior::get_normal_prior(diff);
 				long double p = recalibrateutils::q_to_p(possible);
@@ -58,7 +60,7 @@ namespace covariateutils{
 			if(!read.skips[i]){
 				q = read.qual[i];
 				if((*this)[rg].size() <= q){(*this)[rg].resize(q+1);}
-				(*this)[rg].increment(q, std::array<long long, 2>({(long long)read.errors[i], (long long)read.skips[i]}));
+				(*this)[rg].increment(q, std::array<unsigned long long, 2>({read.errors[i], 1}));
 			}
 		}
 	}
@@ -69,7 +71,7 @@ namespace covariateutils{
 			dq[i].resize((*this)[i].size());
 			for(int j = 0; j < (*this)[i].size(); ++j){ //j is q's here
 				int map_q = 0; //maximum a posteriori q
-				int best_posterior = 0;
+				long double best_posterior = std::numeric_limits<long double>::lowest();
 				for(int possible = 0; possible < MAXQ+1; possible++){
 					int diff = std::abs(prior[i] - possible);
 					long double prior_prob = NormalPrior::get_normal_prior(diff);
@@ -98,7 +100,7 @@ namespace covariateutils{
 				q = read.qual[i];
 				if((*this)[rg].size() <= q){(*this)[rg].resize(q+1);}
 				if((*this)[rg][q][!!read.second].size() <= i){(*this)[rg][q][!!read.second].resize(i+1);}
-				(*this)[rg][q][!!read.second].increment(i, std::array<long long, 2>({(long long)read.errors[i], 1}));
+				(*this)[rg][q][!!read.second].increment(i, std::array<unsigned long long, 2>({read.errors[i], 1}));
 			}
 		}
 	}
@@ -112,7 +114,7 @@ namespace covariateutils{
 					dq[i][j][k].resize((*this)[i][j][k].size());
 					for(int l = 0; l < (*this)[i][j][k].size(); ++l){ //cycle value
 						int map_q = 0; //maximum a posteriori q
-						int best_posterior = 0;
+						long double best_posterior = std::numeric_limits<long double>::lowest();
 						for(int possible = 0; possible < MAXQ+1; possible++){
 							int diff = std::abs(prior[i][j] - possible);
 							long double prior_prob = NormalPrior::get_normal_prior(diff);
@@ -138,10 +140,11 @@ namespace covariateutils{
 		int q;
 		for(size_t i = 1; i < read.seq.length(); i++){
 			q = read.qual[i];
-			if(!read.skips[i] && read.seq[i-1] != 'N' && read.seq[i] != 'N' && q >= minscore){
+			//not skipped guarantees read.seq[i] != 'N' and q >= minscore
+			if(!read.skips[i] && seq_nt4_table[read.seq[i-1]] < 4){
 				if((*this)[rg].size() <= q){(*this)[rg].resize(q+1);}
 				(*this)[rg][q].resize(16); //size will always be 16
-				(*this)[rg][q].increment(dinuc_to_int(read.seq[i-1], read.seq[i]),std::array<long long, 2>({(long long)read.errors[i], 1}));
+				(*this)[rg][q].increment(dinuc_to_int(read.seq[i-1], read.seq[i]),std::array<unsigned long long, 2>({read.errors[i], 1}));
 			}
 		}
 		// seq_nt16_table[256]: char -> 4 bit encoded (1/2/4/8)
@@ -157,7 +160,7 @@ namespace covariateutils{
 				dq[i][j].resize((*this)[i][j].size());
 				for(int k = 0; k < (*this)[i][j].size(); ++k){ //k is dinuc
 					int map_q = 0; //maximum a posteriori q
-					int best_posterior = 0;
+					long double best_posterior = std::numeric_limits<long double>::lowest();
 					for(int possible = 0; possible < MAXQ+1; possible++){
 						int diff = std::abs(prior[i][j] - possible);
 						long double prior_prob = NormalPrior::get_normal_prior(diff);
@@ -176,20 +179,23 @@ namespace covariateutils{
 		return dq;
 	}
 
-	void CCovariateData::consume_read(const readutils::CReadData& read, int minscore){
+	void CCovariateData::consume_read(readutils::CReadData& read, int minscore){
+		for(int i = 0; i < read.seq.length(); ++i){
+			read.skips[i] = (read.skips[i] || seq_nt4_table[read.seq[i]] >= 4 || read.qual[i] < minscore);
+		}
 		rgcov.consume_read(read);
 		qcov.consume_read(read);
 		cycov.consume_read(read);
 		dicov.consume_read(read, minscore);
 	}
 
-	dq_t CCovariateData::get_dqs(){
+	dq_t CCovariateData::get_dqs(int minscore){
 		dq_t dq;
 		std::vector<long double> expected_errors(this->qcov.size(),0);
 		meanq_t meanq(this->qcov.size(),0);
 		for(int rg = 0; rg < this->qcov.size(); ++rg){
-			for(int q = 0; q < this->qcov[rg].size(); ++q){
-				expected_errors[rg] += recalibrateutils::q_to_p(q) * this->qcov[rg][q][1];
+			for(int q = minscore; q < this->qcov[rg].size(); ++q){
+				expected_errors[rg] += (recalibrateutils::q_to_p(q) * this->qcov[rg][q][1]);
 			}
 			meanq[rg] = recalibrateutils::p_to_q(expected_errors[rg] / this->rgcov[rg][1]);
 		}

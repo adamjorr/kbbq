@@ -30,6 +30,15 @@ int check_args(int argc, char* argv[]){
 	}
 }
 
+template<typename T>
+void print_vec(const std::vector<T>& v){
+	std::cerr << "[";
+	for(int i = 0; i < v.size()-1; ++i){
+		std::cerr << v[i] << ", ";
+	}
+	std::cerr << v.back() << "]" << std::endl;
+}
+
 //nshift is the total number of bits, so it's divided by each block
 bloom::bloomary_t init_bloomary(uint64_t nbits, int nhashes){
 	bloom::bloomary_t ret;
@@ -235,9 +244,59 @@ int main(int argc, char* argv[]){
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 	covariateutils::CCovariateData data = recalibrateutils::get_covariatedata(file.get(), trusted, k);
 
+	std::cerr << "Covariate data:" << std::endl;
+	std::cerr << "rgcov:";
+	for(int i = 0; i < data.rgcov.size(); ++i){ //rgcov[rg][0] = errors
+		std::cerr << i << ": {" << data.rgcov[i][0] << ", " << data.rgcov[i][1] << "}" << std::endl;
+	}
+	std::cerr << "qcov:" << "(" << data.qcov.size() << ")" << std::endl;
+	for(int i = 0; i < data.qcov.size(); ++i){
+		std::cerr << i << "(" << data.qcov[i].size() << ")" << ": [";
+		for(int j = 0; j < data.qcov[i].size(); ++j){
+			std::cerr << "{ " << data.qcov[i][j][0] << ", " << data.qcov[i][j][1] << "}";
+		}
+		std::cerr << "]" << std::endl;
+	}
+
+
 	//recalibrate reads and write to file
 	std::cerr << "Training model" << std::endl;
 	covariateutils::dq_t dqs = data.get_dqs();
+
+	std::cerr << "dqs:\n" << "meanq: ";
+	print_vec<int>(dqs.meanq);
+	std::cerr << "rgdq:";
+	print_vec<int>(dqs.rgdq);
+	std::cerr << "qscoredq:";
+	int i = 0;
+	for(const std::vector<int>& v : dqs.qscoredq){
+		std::cerr << i++ << ": ";
+		print_vec<int>(v);
+	}
+	// std::cerr << "cycledq:";
+	// i = 0;
+	// int j = 0;
+	// int l = 0;
+	// for(const std::vector<std::array<std::vector<int>,2>>& v : dqs.cycledq){
+	// 	std::cerr << i++ << ": ";
+	// 	for(const std::array<std::vector<int>,2>& a: v){
+	// 		std::cerr << j++ << ": ";
+	// 		for(const std::vector<int>& b: a){
+	// 			std::cerr << l++ << ": ";
+	// 			print_vec<int>(b);
+	// 		}
+	// 	}
+	// }
+	// i = 0;
+	// j = 0;
+	// std::cerr << "dinucdq:";
+	// for(const std::vector<std::vector<int>> v : dqs.dinucdq){
+	// 	std::cerr << i++ << ": ";
+	// 	for(const std::vector<int> w : v){
+	// 		std::cerr << j++ << ": ";
+	// 		print_vec<int>(w);
+	// 	}
+	// }
 
 	std::cerr << "Recalibrating file" << std::endl;
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
