@@ -34,6 +34,37 @@ extern "C"{
 
 namespace bloom{
 
+inline uint64_t hash(uint64_t key, uint64_t mask){return yak_hash64(key, mask);}
+
+//a class to hold an encoded kmer
+class Kmer{
+protected:
+	size_t s;
+	int k;
+	uint64_t x[2]; //fwd and reverse
+	uint64_t mask;
+	uint64_t shift;
+public:
+	Kmer(int k): k(k), s(0), mask((1ULL<<k*2) - 1), shift((k-1)*2) {x[0] = x[1] = 0;}
+	inline void push_back(char ch){
+		int c = seq_nt4_table[ch];
+		if (c < 4){
+			x[0] = (x[0] << 2 | c) & mask;                  // forward strand
+			x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;  // reverse strand
+			++s;
+		} else this->reset(); // if there is an "N", restart
+	}
+	//get encoded kmer
+	inline uint64_t get(){return x[0] < x[1] ? x[0] : x[1];} //min of x[0] and x[1]
+	//get hashed kmer
+	inline uint64_t get_hashed(){return hash(this->get(),this->mask);}
+	//get encoded prefix
+	inline uint64_t prefix(){return this->get()&((1<<PREFIXBITS)-1);}
+	//get hashed prefix
+	inline uint64_t hashed_prefix(){return this->get_hashed()&((1<<PREFIXBITS)-1);}
+	inline void reset(){s = 0; x[0] = x[1] = 0;}
+	inline size_t size(){return s;}
+};
 
 class Bloom
 {
@@ -61,8 +92,6 @@ public:
 int optimal_nhashes(int shift, int n); //calculate the optimal nhashes for a size and number of times loaded.
 
 typedef std::array<Bloom,(1<<PREFIXBITS)> bloomary_t;
-
-inline uint64_t hash(uint64_t key, uint64_t mask){return yak_hash64(key, mask);}
 
 //hash each kmer in seq and return a vector of hashes.
 //the returned vector is not necessarily of length seq.length() - k + 1
