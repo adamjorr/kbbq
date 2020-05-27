@@ -235,8 +235,8 @@ namespace bloom
 							break; //exit extension
 						}
 					}
-					if(l > best_l){
-						best_l = l;
+					if(seq.length() > best_l){ //we extended the read
+						best_l = seq.length();
 						best_c.clear();
 						best_c.push_back(d);
 					} else if (l == best_l){
