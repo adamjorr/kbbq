@@ -220,12 +220,14 @@ namespace readutils{
 		//right side
 		if(anchor[1] != std::string::npos){
 			for(size_t i = anchor[1] + 1; i < this->seq.length();){
-				int start = i - k + 1; //seq containing all kmers that are affected
+				size_t start = i - k + 1; //seq containing all kmers that are affected
+				// std::cerr << "anchor[1]:" << anchor[1];
+				// std::cerr << " i: " << i << " start: " << start << std::endl;
 				// size_t end = i + k < this->seq.length() ? i + k : std::string::npos; //find_longest_fix will take care of this
-				std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(this->seq.substr(start), trusted, k);
+				std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(this->seq.substr(start, std::string::npos), trusted, k);
 				std::vector<char> fix = std::get<0>(lf);
 				int fixlen = std::get<1>(lf);
-				if(fixlen != 0){
+				if(fixlen > 0){
 					this->seq[i] = fix[0];
 					this->errors[i] = true;
 					i += fixlen;

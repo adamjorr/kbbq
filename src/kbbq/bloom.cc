@@ -124,7 +124,7 @@ namespace bloom
 		std::vector<uint64_t> hashes = bloom::hash_seq(seq, k);
 		size_t i, l, n;
 		size_t anchor_start, anchor_end, anchor_l, anchor_current;
-		anchor_start = anchor_end = -1;
+		anchor_start = anchor_end = std::string::npos;
 		anchor_l = anchor_current = 0;
 		for(i = l = n = 0; i < seq.length(); ++i){
 			int c = seq_nt4_table[seq[i]];
@@ -143,7 +143,7 @@ namespace bloom
 					}
 				}
 			} else {
-				if(anchor_current > anchor_l){
+				if(l > k && anchor_current > anchor_l){
 					anchor_l = anchor_current;
 					anchor_end = i-1;
 					anchor_start = i - k - anchor_l;
@@ -199,8 +199,8 @@ namespace bloom
 						break;
 					}
 				}
-				if(l > best_l){
-					best_l = l;
+				if(l >= k && l > best_l){
+					best_l = l - k;
 					best_c.clear();
 					best_c.push_back(d);
 				} else if (l == best_l){
@@ -245,7 +245,7 @@ namespace bloom
 				}
 			}
 		}
-		return std::make_pair(best_c, k - best_l);
+		return std::make_pair(best_c, best_l);
 	}
 
 	Bloom::Bloom(int nshift, int nhashes): ninserts(0),
