@@ -46,6 +46,7 @@ protected:
 	uint64_t shift;
 public:
 	Kmer(int k): k(k), s(0), mask((1ULL<<k*2) - 1), shift((k-1)*2) {x[0] = x[1] = 0;}
+	Kmer(const Kmer& o): k(o.k), s(o.s), mask(o.mask), shift(o.shift), x{o.x[0], o.x[1]} {}
 	inline void push_back(char ch){
 		int c = seq_nt4_table[ch];
 		if (c < 4){

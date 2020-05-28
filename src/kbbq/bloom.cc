@@ -7,22 +7,14 @@
 namespace bloom
 {
 	std::vector<uint64_t> hash_seq(std::string seq, int k){
-		int i, l;
-		uint64_t x[2];
-		uint64_t mask = (1ULL<<k*2) - 1;
-		uint64_t shift = (k-1) * 2;
+		Kmer kmer(k);
 		std::vector<uint64_t> ret;
 		ret.reserve(seq.length() - k + 1);
-		for (i = l = 0, x[0] = x[1] = 0; i < seq.length(); ++i) {
-			int c = seq_nt4_table[seq[i]];
-			if (c < 4) { // not an "N" base
-				x[0] = (x[0] << 2 | c) & mask;                  // forward strand
-				x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;  // reverse strand
-				if (++l >= k) { // we find a k-mer
-					uint64_t y = x[0] < x[1]? x[0] : x[1];
-					ret.push_back(yak_hash64(y, mask));
-				}
-			} else l = 0, x[0] = x[1] = 0; // if there is an "N", restart
+		for (int i = 0; i < seq.length(); ++i) {
+			kmer.push_back(seq[i]);
+			if (kmer.size() >= k) { //we have a full k-mer
+				ret.push_back(kmer.get_hashed());
+			}
 		}
 		return ret;
 	}
@@ -120,62 +112,45 @@ namespace bloom
 		return c;
 	}
 
-	std::array<size_t, 2> find_longest_trusted_seq(std::string seq,const bloomary_t& b, int k){
-		std::vector<uint64_t> hashes = bloom::hash_seq(seq, k);
-		size_t i, l, n;
-		size_t anchor_start, anchor_end, anchor_l, anchor_current;
+	std::array<size_t, 2> find_longest_trusted_seq(std::string seq, const bloomary_t& b, int k){
+		bloom::Kmer kmer(k);
+		size_t anchor_start, anchor_end, anchor_best, anchor_current;
 		anchor_start = anchor_end = std::string::npos;
-		anchor_l = anchor_current = 0;
-		for(i = l = n = 0; i < seq.length(); ++i){
-			int c = seq_nt4_table[seq[i]];
-			if(c < 4){
-				if(++l > k){
-					uint64_t h = hashes[n++];
-					if(b[h&((1<<PREFIXBITS)-1)].query(h>>PREFIXBITS)){
-						anchor_current++; //length of current stretch
-					} else {
-						if(anchor_current > anchor_l){
-							anchor_l = anchor_current;
-							anchor_end = i;
-							anchor_start = i + 1 - k - anchor_l;
-						}
-						anchor_current = 0;
+		anchor_best = anchor_current = 0;
+		for(size_t i = 0; i < seq.length(); ++i){
+			kmer.push_back(seq[i]);
+			if(kmer.size() >= k){
+				if(b[kmer.hashed_prefix()].query(kmer.get_hashed()>>PREFIXBITS)){
+					anchor_current++; //length of current stretch
+				} else {
+					if(anchor_current > anchor_best){
+						anchor_best = anchor_current;
+						anchor_end = i - 1; // always > 0 because i >= kmer.size() >= k
+						anchor_start = i + 1 - k - anchor_current;
 					}
+					anchor_current = 0;
 				}
-			} else {
-				if(l > k && anchor_current > anchor_l){
-					anchor_l = anchor_current;
-					anchor_end = i-1;
-					anchor_start = i - k - anchor_l;
-				}
+			} else if(anchor_current != 0){ //we had a streak but now it's over
+				if(anchor_current > anchor_best){
+						anchor_best = anchor_current;
+						anchor_end = i - 1; // always > 0 because i >= kmer.size() >= k
+						anchor_start = i + 1 - k - anchor_current;
+					}
 				anchor_current = 0;
-				l = 0;
 			}
 		}
-		if(anchor_current > anchor_l){
-			anchor_l = anchor_current;
+		if(anchor_current > anchor_best){
+			anchor_best = anchor_current;
 			anchor_end = std::string::npos;
-			anchor_start = i - k - anchor_l;
+			anchor_start = seq.length() - k - anchor_current;
 		}
 		return std::array<size_t,2>{{anchor_start, anchor_end}};
 	}
 
-	void increment_coded_kmer(uint64_t x[], int c, int k){
-		uint64_t mask = (1ULL<<k*2) - 1;
-		uint64_t shift = (k-1) * 2;
-		if(c < 4){
-			x[0] = (x[0] << 2 | c) & mask;                  // forward strand
-			x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;  // reverse strand
-		}
-	}
-
 	std::pair<std::vector<char>, int> find_longest_fix(std::string seq, const bloomary_t& t, int k){
 		//this function is probably not very efficient.
-		size_t i;
-		int l;
+		bloom::Kmer kmer(k);
 		int best_l = 0;
-		uint64_t x[2];
-		uint64_t mask = (1ULL<<k*2) - 1;
 		std::vector<char> best_c;
 		char original_c;
 		size_t end = std::min(seq.length(), 2UL * k - 1);
@@ -184,62 +159,63 @@ namespace bloom
 			char d = *e;
 			if( d != original_c ){
 				seq[k-1] = d;
-				for(i = l = 0, x[0] = x[1] = 0; i < end; ++i){
-					int c = seq_nt4_table[seq[i]];
-					if (c < 4) { // not an "N" base
-						increment_coded_kmer(x, c, k);
-						if (++l >= k) { // we find a k-mer
-							uint64_t y = x[0] < x[1]? x[0] : x[1];
-							uint64_t h = yak_hash64(y, mask);
-							if(!t[h&((1<<PREFIXBITS)-1)].query(h>>PREFIXBITS)){
-								break; //if it's not trusted, end here
-							}
+				kmer.reset();
+				for(size_t i = 0; i < end; ++i){
+					kmer.push_back(seq[i]);
+					if (kmer.size() >= k) { // we find a k-mer
+						if(!t[kmer.hashed_prefix()].query(kmer.get_hashed()>>PREFIXBITS)){
+							break; //if it's not trusted, end here
 						}
-					} else {
+					} else if (kmer.size() == 0 && i > 0){
 						break;
 					}
 				}
-				if(l >= k && l > best_l){
-					best_l = l - k;
+				if(kmer.size() >= k && kmer.size() > best_l){
+					best_l = kmer.size() - k;
 					best_c.clear();
 					best_c.push_back(d);
-				} else if (l == best_l){
+				} else if (kmer.size() == best_l){
 					best_c.push_back(d);
 				}
 			}
 		}
-		if(best_l == seq.length() && best_c.size() > 1){ //we ran out of kmers to try and we have a tie
+		if(best_l == (seq.length()-k) && best_c.size() > 1){ //we ran out of kmers to try and we have a tie
 			for(const char* e : {"A","C","G","T"} ){
-				char d = *e;
+				char d = *e; //the fix character
 				if( d != original_c ){
-					seq = seq.substr(0, end); //original sequence length
+					seq = seq.substr(0, end); //reset str to original length
+					size_t original_len = seq.length();
+					kmer.reset(); //reset kmer
 					seq[k-1] = d;
-					for(i = end - k, l = 0, x[0] = x[1] = 0; i < 2 * k - 1; ++i){
+					for(size_t i = (end >= k ? end - k : 0); i < 2 * k - 1; ++i){
 						int cur_seqlen = seq.length();
-						for(const char* ex : {"A","C","G","T"}){	
-							char extra = *ex;	
-							int c = i < seq.length() ? seq_nt4_table[seq[i]] : seq_nt4_table[extra];
-							if (c < 4) { // not an "N" base
-								increment_coded_kmer(x, c, k);
-								if (++l >= k) { // we find a k-mer
-									uint64_t y = x[0] < x[1]? x[0] : x[1];
-									uint64_t h = yak_hash64(y, mask);
-									if(i >= seq.length() && t[h&((1<<PREFIXBITS)-1)].query(h>>PREFIXBITS)){
-										seq.push_back(extra);
-										break; //if we have an extra and it's trusted, end here
-									}
+						if(i < seq.length()){
+							kmer.push_back(seq[i]);
+							if(kmer.size() == 0){ //we had a non-N base somehow; this shouldn't happen
+								break;
+							}
+						} else {
+							//we have to come up with extra bases.
+							for(const char* ex : {"A","C","G","T"}){
+								char extra = *ex; //the extension character
+								bloom::Kmer extra_kmer = kmer; //copy the previous kmer
+								extra_kmer.push_back(extra);
+								if(t[extra_kmer.hashed_prefix()].query(extra_kmer.get_hashed()>>PREFIXBITS)){
+									kmer.push_back(extra); // add character to end
+									seq.push_back(extra); //
+									break; //try to extend again
 								}
 							}
 						}
-						if(cur_seqlen == seq.length()){ //we didn't add an extra base
-							break; //exit extension
+						if(cur_seqlen == seq.length()){ //no extra bases were trusted
+							break; //exit extension for this fix
 						}
 					}
-					if(seq.length() > best_l){ //we extended the read
-						best_l = seq.length();
+					if(seq.length() - k > best_l){ //we extended the read
+						best_l = seq.length() - k; //subtract k because bases [0,k) make up the kmer
 						best_c.clear();
 						best_c.push_back(d);
-					} else if (l == best_l){
+					} else if (seq.length() - k == best_l){
 						best_c.push_back(d);
 					}
 				}

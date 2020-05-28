@@ -191,7 +191,8 @@ int main(int argc, char* argv[]){
 	std::cerr << "Sampling kmers at rate " << alpha << std::endl;
 
 	htsiter::KmerSubsampler subsampler(file.get(), k, alpha);
-	//load subsampled bf x
+	//load subsampled bf.
+	//these are hashed kmers.
 	recalibrateutils::kmer_cache_t subsampled_hashes = recalibrateutils::subsample_kmers(subsampler);
 
 	uint64_t nsampled = 0;
