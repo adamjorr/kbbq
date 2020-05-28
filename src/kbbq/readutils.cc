@@ -263,7 +263,7 @@ namespace readutils{
 				std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(sub, trusted, k);
 				std::vector<char> fix = std::get<0>(lf);
 				int fixlen = std::get<1>(lf);
-				if(fixlen != 0){
+				if(fixlen > 0){
 					int c = seq_nt4_table[fix[0]];
 					char d = c < 4 ? seq_nt16_str[seq_nt16_table[3 - c]] : c;
 					this->seq[j] = d;

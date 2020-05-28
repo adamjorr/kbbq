@@ -142,7 +142,7 @@ namespace bloom
 		if(anchor_current > anchor_best){
 			anchor_best = anchor_current;
 			anchor_end = std::string::npos;
-			anchor_start = seq.length() - k - anchor_current;
+			anchor_start = seq.length() + 1 - k - anchor_current;
 		}
 		return std::array<size_t,2>{{anchor_start, anchor_end}};
 	}
