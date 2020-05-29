@@ -223,16 +223,13 @@ namespace readutils{
 		if(anchor[1] != std::string::npos){
 			for(size_t i = anchor[1] + 1; i < this->seq.length();){
 				size_t start = i - k + 1; //seq containing all kmers that are affected
-				// std::cerr << "anchor[1]:" << anchor[1];
-				// std::cerr << " i: " << i << " start: " << start << std::endl;
-				// size_t end = i + k < this->seq.length() ? i + k : std::string::npos; //find_longest_fix will take care of this
 				std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(this->seq.substr(start, std::string::npos), trusted, k);
 				std::vector<char> fix = std::get<0>(lf);
-				int fixlen = std::get<1>(lf);
-				if(fixlen > 0){
+				int fixlen = std::get<1>(lf); //new i is return value + start // i += r -k + 1
+				if(fixlen-k+1 > 0){
 					this->seq[i] = fix[0];
 					this->errors[i] = true;
-					i += fixlen;
+					i += fixlen - k + 1;
 					corrected = true;
 					if(fix.size() > 1){
 						multiple = true;
@@ -261,16 +258,17 @@ namespace readutils{
 				int j = anchor[0] - 1 + k - 1 - i; //iterating in reversed space
 				int end = i + k; //seq containing all kmers that are affected is [0, end) in original space
 				//but [j -k + 1, npos) in reverse space. 
-				std::string sub = revcomped.substr(j - k + 1); //get the right subsequence
+				std::string sub = revcomped.substr(j - k + 1, std::string::npos); //get the right subsequence
 				std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(sub, trusted, k);
 				std::vector<char> fix = std::get<0>(lf);
-				int fixlen = std::get<1>(lf);
-				if(fixlen > 0){
+				int fixlen = std::get<1>(lf); //new i is return value + start // i += r -k + 1
+				//new j should be return value + start // j += r - k + 1
+				if(fixlen-k+1 > 0){
 					int c = seq_nt4_table[fix[0]];
 					char d = c < 4 ? seq_nt16_str[seq_nt16_table[3 - c]] : c;
-					this->seq[j] = d;
-					this->errors[j] = true;
-					i -= fixlen;
+					revcomped[j] = d;
+					this->errors[i] = true;
+					i -= fixlen - k + 1;
 					corrected = true;
 					if(fix.size() > 1){
 						multiple = true;
