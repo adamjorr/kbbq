@@ -168,11 +168,13 @@ namespace readutils{
 	}
 
 	void CReadData::infer_read_errors(const bloom::bloomary_t& b, const std::vector<int>& thresholds, int k){
-		std::array<std::vector<int>,2> overlapping = bloom::overlapping_kmers_in_bf(this->seq, b, k);
-		std::vector<int> in = overlapping[0];
-		std::vector<int> possible = overlapping[1];
-		for(int i = 0; i < errors.size(); ++i){
-			if(possible[i] > k){std::cerr << possible[i] << "WARNING: Invalid i: " << i << std::endl;}
+		std::array<std::vector<size_t>,2> overlapping = bloom::overlapping_kmers_in_bf(this->seq, b, k);
+		std::vector<size_t> in = overlapping[0];
+		std::vector<size_t> possible = overlapping[1];
+		for(size_t i = 0; i < errors.size(); ++i){
+			// std::cerr << "in " << i << ": " << in[i] << std::endl;
+			// std::cerr << "possible " << i << ": " << possible[i] << std::endl;
+			if(possible[i] > k){std::cerr << "seq:" << this->seq << " " << possible[i] << "WARNING: Invalid i: " << i << std::endl;}
 			this->errors[i] = (in[i] <= thresholds[possible[i]] || this->qual[i] <= 6);
 		}
 	}

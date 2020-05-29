@@ -29,76 +29,45 @@ namespace bloom
 		}
 	}
 
-	std::array<std::vector<int>,2> overlapping_kmers_in_bf(std::string seq, const bloomary_t& b, int k){
-		int i, l; //i is the character index, l is the length of the current stretch of non-N bases
-		uint64_t x[2];
-		uint64_t mask = (1ULL<<k*2) - 1;
-		uint64_t shift = (k-1) * 2;
-		std::vector<bool> kmer_possible(seq.length(), false); //the kmer ending in this position exists
-		std::vector<bool> kmer_present(seq.length(), false); //the kmer ending in this position is present
-		//possible is the sum of the relevant kmer_possibles
-		//inbf is the sum of the relevant kmer_presents
-		std::vector<int> inbf(seq.length(),0); //inbf and possible indices are in i space.
-		std::vector<int> possible(seq.length(),0);
-		int n_in = 0;
-		int n_out = 0;
-		for (i = l = 0, x[0] = x[1] = 0; i < seq.length(); ++i) {
-			int c = seq_nt4_table[seq[i]];
-			if (c < 4) { // not an "N" base
-				x[0] = (x[0] << 2 | c) & mask;                  // forward strand
-				x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;  // reverse strand
-				if (++l >= k) { // we find a k-mer
-					// n_possible = n_possible + 1 <= k ? n_possible + 1 : k;
-					kmer_possible[i] = true;
-					uint64_t y = x[0] < x[1]? x[0] : x[1];
-					uint64_t h = yak_hash64(y, mask);
-					bool k_in = b[h&((1<<PREFIXBITS)-1)].query(h>>PREFIXBITS);
-					kmer_present[i] = k_in;
-					if(k_in){
-						n_in++; //n_in += !!k_in; n_out += !!!k_in
-					} else{
-						n_out++;
-					}
-				} else {
-					kmer_possible[i] = false;
-				}
-			} else{  // if there is an "N", restart
-				l = 0, x[0] = x[1] = 0;
-				kmer_possible[i] = false;
-			}
-
-			//we have a long enough stretch of kmers that the old ones start to matter
-			if(i-k >= 0 && kmer_possible[i-k]){ //1 before the base we are tallying
-				if(kmer_present[i-k]){
-					n_in--;
-				} else {
-					n_out--;
-				}
-			}
-
-			if(i - k + 1 >= 0){
-				inbf[i -k + 1] = n_in;
-				possible[i -k + 1] = n_in + n_out; //n_possible = n_in + n_out
+	std::array<std::vector<size_t>,2> overlapping_kmers_in_bf(std::string seq, const bloomary_t& b, int k){
+		bloom::Kmer kmer(k);
+		std::vector<bool> kmer_present(seq.length()-k+1, false);
+		std::vector<size_t> kmers_in(seq.length(), 0);
+		std::vector<size_t> kmers_possible(seq.length(), 0);
+		size_t incount = 0;
+		size_t outcount = 0;
+		for(size_t i = 0; i < k; ++i){
+			kmer.push_back(seq[i]);
+		}
+		kmer_present[0] = b[kmer.hashed_prefix()].query(kmer.get_query());
+		for(size_t i = k; i < seq.length(); ++i){
+			kmer.push_back(seq[i]);
+			if(kmer.valid()){
+				kmer_present[i-k+1] = b[kmer.hashed_prefix()].query(kmer.get_query());
+			} else {
+				kmer_present[i-k+1] = false;
 			}
 		}
-		if(l >= k){ //we ended with a full kmer so we have to deal with the end positions
-			for(; i < seq.length()+k-1; ++i){
-				if(i-k >= 0 && kmer_possible[i-k]){
-					if(kmer_present[i-k]){
-						n_in--;
-					}
-					else {
-						n_out--;
-					}
-				}
-				if(i-k+1 >= 0){
-					inbf[i - k + 1] = n_in;
-					possible[i - k + 1] = n_in + n_out;
+		for(size_t i = 0; i < seq.length(); ++i){
+			if(i < seq.length() - k + 1){ //add kmers now in our window
+				if(kmer_present[i]){
+					++incount;
+				} else {
+					++outcount;
 				}
 			}
+			if(i >= k){ //remove kmers outside our window
+				if(kmer_present[i - k]){
+					--incount;
+				} else {
+					--outcount;
+				}
+			}
+			kmers_in[i] = incount;
+			kmers_possible[i] = incount + outcount;
 		}
-		std::array<std::vector<int>,2> ret = {inbf, possible};
-		return ret;
+
+		return {kmers_in, kmers_possible};
 	}
 
 	int nkmers_in_bf(std::string seq, const bloomary_t& b, int k){
@@ -118,11 +87,11 @@ namespace bloom
 		anchor_start = anchor_end = std::string::npos;
 		anchor_best = anchor_current = 0;
 		for(size_t i = 0; i < seq.length(); ++i){
-			kmer.push_back(seq[i]);
-			if(kmer.size() >= k){
-				if(b[kmer.hashed_prefix()].query(kmer.get_hashed()>>PREFIXBITS)){
+			if(kmer.push_back(seq[i]) >= k){
+				if(b[kmer.hashed_prefix()].query(kmer.get_query())){
 					anchor_current++; //length of current stretch
-				} else {
+				}
+				else { //we had a streak but the kmer is not trusted
 					if(anchor_current > anchor_best){
 						anchor_best = anchor_current;
 						anchor_end = i - 1; // always > 0 because i >= kmer.size() >= k
@@ -130,15 +99,15 @@ namespace bloom
 					}
 					anchor_current = 0;
 				}
-			} else if(anchor_current != 0){ //we had a streak but now it's over
+			} else if(anchor_current != 0){ //we had a streak but ran into a non-ATGC base
 				if(anchor_current > anchor_best){
-						anchor_best = anchor_current;
-						anchor_end = i - 1; // always > 0 because i >= kmer.size() >= k
-						anchor_start = i + 1 - k - anchor_current;
-					}
+					anchor_best = anchor_current;
+					anchor_end = i - 1; // always > 0 because i >= kmer.size() >= k
+					anchor_start = i + 1 - k - anchor_current;
+				}
 				anchor_current = 0;
 			}
-		}
+		} //we got to the end
 		if(anchor_current > anchor_best){
 			anchor_best = anchor_current;
 			anchor_end = std::string::npos;

@@ -39,7 +39,7 @@ inline uint64_t hash(uint64_t key, uint64_t mask){return yak_hash64(key, mask);}
 //a class to hold an encoded kmer
 class Kmer{
 protected:
-	size_t s;
+	size_t s; //num times kmer added to since last reset
 	int k;
 	uint64_t x[2]; //fwd and reverse
 	uint64_t mask;
@@ -47,13 +47,15 @@ protected:
 public:
 	Kmer(int k): k(k), s(0), mask((1ULL<<k*2) - 1), shift((k-1)*2) {x[0] = x[1] = 0;}
 	Kmer(const Kmer& o): k(o.k), s(o.s), mask(o.mask), shift(o.shift), x{o.x[0], o.x[1]} {}
-	inline void push_back(char ch){
+	//add a character and return the number of times the kmer has been added to since last reset
+	inline size_t push_back(char ch){
 		int c = seq_nt4_table[ch];
 		if (c < 4){
 			x[0] = (x[0] << 2 | c) & mask;                  // forward strand
 			x[1] = x[1] >> 2 | (uint64_t)(3 - c) << shift;  // reverse strand
 			++s;
 		} else this->reset(); // if there is an "N", restart
+		return s;
 	}
 	//get encoded kmer
 	inline uint64_t get(){return x[0] < x[1] ? x[0] : x[1];} //min of x[0] and x[1]
@@ -63,8 +65,14 @@ public:
 	inline uint64_t prefix(){return this->get()&((1<<PREFIXBITS)-1);}
 	//get hashed prefix
 	inline uint64_t hashed_prefix(){return this->get_hashed()&((1<<PREFIXBITS)-1);}
+	//get hashed kmer without the prefix
+	inline uint64_t get_query(){return this->get_hashed() >> PREFIXBITS;}
+	//empty the kmer and set s to 0
 	inline void reset(){s = 0; x[0] = x[1] = 0;}
+	//the number of times the kmer has been added to since the last reset
 	inline size_t size(){return s;}
+	//whether the kmer has enough bases to be of length k
+	inline bool valid(){return (s >= k);}
 };
 
 class Bloom
@@ -106,7 +114,7 @@ std::vector<uint64_t> hash_seq(std::string seq, int k);
 //htsiter::KmerSubsampler is the prefferred way to do this.
 void subsample_and_insert(bloomary_t& bfs, std::vector<uint64_t> hashes, double alpha);
 
-std::array<std::vector<int>,2> overlapping_kmers_in_bf(std::string seq, const bloomary_t& b, int k = 31);
+std::array<std::vector<size_t>,2> overlapping_kmers_in_bf(std::string seq, const bloomary_t& b, int k = 31);
 
 //return the total number of kmers in b
 int nkmers_in_bf(std::string seq, const bloomary_t& b, int k);
