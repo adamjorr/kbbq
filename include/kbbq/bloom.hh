@@ -127,7 +127,7 @@ int nkmers_in_bf(std::string seq, const bloomary_t& b, int k);
 std::array<size_t,2> find_longest_trusted_seq(std::string seq, const bloomary_t& b, int k);
 
 //find the longest possible fix for the kmer at position (k-1) until the end
-//return the best character (multiple in case of a tie) and the length of the fix.
+//return the best character (multiple in case of a tie) and the index of the next untrusted base.
 //if the length of the fix is 0, no fix was found and correction should end.
 std::pair<std::vector<char>, int> find_longest_fix(std::string seq, const bloomary_t& t, int k);
 

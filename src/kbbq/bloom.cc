@@ -129,26 +129,27 @@ namespace bloom
 			if( d != original_c ){
 				seq[k-1] = d;
 				kmer.reset();
-				for(size_t i = 0; i < end; ++i){
+				size_t i;
+				for(i = 0; i < end; ++i){
 					kmer.push_back(seq[i]);
 					if (kmer.size() >= k) { // we find a k-mer
 						if(!t[kmer.hashed_prefix()].query(kmer.get_hashed()>>PREFIXBITS)){
 							break; //if it's not trusted, end here
 						}
-					} else if (kmer.size() == 0 && i > 0){
+					} else if (kmer.size() == 0 && i > 0){ //we ran into a non-ATCG character
 						break;
 					}
 				}
-				if(kmer.size() >= k && kmer.size() > best_l){
-					best_l = kmer.size() - k;
+				if(i > best_l){
+					best_l = i;
 					best_c.clear();
 					best_c.push_back(d);
-				} else if (kmer.size() == best_l){
+				} else if (i == best_l){
 					best_c.push_back(d);
 				}
 			}
 		}
-		if(best_l == (seq.length()-k) && best_c.size() > 1){ //we ran out of kmers to try and we have a tie
+		if(best_l == seq.length() && best_c.size() > 1){ //we ran out of kmers to try and we have a tie
 			for(const char* e : {"A","C","G","T"} ){
 				char d = *e; //the fix character
 				if( d != original_c ){
@@ -156,7 +157,8 @@ namespace bloom
 					size_t original_len = seq.length();
 					kmer.reset(); //reset kmer
 					seq[k-1] = d;
-					for(size_t i = (end >= k ? end - k : 0); i < 2 * k - 1; ++i){
+					size_t i;
+					for(i = (end >= k ? end - k : 0); i < 2 * k - 1; ++i){
 						int cur_seqlen = seq.length();
 						if(i < seq.length()){
 							kmer.push_back(seq[i]);
@@ -169,7 +171,7 @@ namespace bloom
 								char extra = *ex; //the extension character
 								bloom::Kmer extra_kmer = kmer; //copy the previous kmer
 								extra_kmer.push_back(extra);
-								if(t[extra_kmer.hashed_prefix()].query(extra_kmer.get_hashed()>>PREFIXBITS)){
+								if(t[extra_kmer.hashed_prefix()].query(extra_kmer.get_query())){
 									kmer.push_back(extra); // add character to end
 									seq.push_back(extra); //
 									break; //try to extend again
@@ -180,11 +182,11 @@ namespace bloom
 							break; //exit extension for this fix
 						}
 					}
-					if(seq.length() - k > best_l){ //we extended the read
-						best_l = seq.length() - k; //subtract k because bases [0,k) make up the kmer
+					if(i > best_l){ //we extended the read
+						best_l = i;
 						best_c.clear();
 						best_c.push_back(d);
-					} else if (seq.length() - k == best_l){
+					} else if (i == best_l){
 						best_c.push_back(d);
 					}
 				}
