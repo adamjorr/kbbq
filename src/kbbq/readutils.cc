@@ -275,7 +275,7 @@ namespace readutils{
 					}
 				} else {
 					//couldn't find a fix; skip ahead and try again if long enough
-					i -= k+1;
+					i -= k-1;
 					if(i + k <= (seq.length()/2) || i + k <= 2*k ){
 						//sequence not long enough. end this side.
 						break;
