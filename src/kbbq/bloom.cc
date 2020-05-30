@@ -129,8 +129,8 @@ namespace bloom
 
 	std::pair<std::vector<char>,int> find_longest_fix(std::string seq, const bloomary_t& trusted, int k){
 		bloom::Kmer kmer(k);
-		std::vector<char> best_c;
-		size_t best_l;
+		std::vector<char> best_c{};
+		size_t best_l = 0;
 		for(char c: {'A','C','G','T'}){
 			if(c == seq[k-1]){continue;}
 			seq[k-1] = c;
