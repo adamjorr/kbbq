@@ -264,9 +264,9 @@ namespace readutils{
 				int fixlen = std::get<1>(lf); //new i is return value + start // i += r -k + 1
 				//new j should be return value + start // j += r - k + 1
 				if(fixlen-k+1 > 0){
-					int c = seq_nt4_table[fix[0]];
-					char d = c < 4 ? seq_nt16_str[seq_nt16_table[3 - c]] : c;
-					revcomped[j] = d;
+					// int c = seq_nt4_table[fix[0]];
+					// char d = c < 4 ? seq_nt16_str[seq_nt16_table[3 - c]] : c;
+					revcomped[j] = fix[0];
 					this->errors[i] = true;
 					i -= fixlen - k + 1;
 					corrected = true;
