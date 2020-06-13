@@ -4,8 +4,11 @@
 #include "recalibrateutils.hh"
 #include <memory>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <htslib/hfile.h>
 #include <getopt.h>
+#include <cassert>
 
 //opens file filename and returns a unique_ptr to the result.
 std::unique_ptr<htsiter::HTSFile> open_file(std::string filename, bool is_bam = true, bool use_oq = false, bool set_oq = false){
@@ -47,7 +50,7 @@ bloom::bloomary_t init_bloomary(uint64_t nbits, int nhashes){
 	std::cerr << "Size of each bloom filter: " << eachbits << " bits." << std::endl;
 	std::cerr << "Number of hash functions: " << nhashes << "." << std::endl;
 	for(size_t i = 0; i < ret.size(); ++i){
-		bloom::Bloom n(log2(eachbits), nhashes);
+		bloom::Bloom n(ceil(log2(eachbits)), nhashes);
 		ret[i] = std::move(n);
 	}
 	return ret;
@@ -60,6 +63,9 @@ struct option long_options[] = {
 	{"set-oq",no_argument,0,'s'}, //default: off
 	{"genomelen",required_argument,0,'g'}, //estimated for bam input, required for fastq input
 	{"coverage",required_argument,0,'c'}, //default: estimated
+#ifndef NDEBUG
+	{"debug",required_argument,0,'d'},
+#endif
 	{0, 0, 0, 0}
 };
 
@@ -72,7 +78,11 @@ int main(int argc, char* argv[]){
 
 	int opt = 0;
 	int opt_idx = 0;
-	while((opt = getopt_long(argc,argv,"k:usg:c:",long_options, &opt_idx)) != -1){
+#ifndef NDEBUG
+	std::string kmerlist("");
+	std::string trustedlist("");
+#endif
+	while((opt = getopt_long(argc,argv,"k:usg:c:d:",long_options, &opt_idx)) != -1){
 		switch(opt){
 			case 'k':
 				k = std::stoi(std::string(optarg));
@@ -92,6 +102,15 @@ int main(int argc, char* argv[]){
 			case 'c':
 				coverage = std::stoul(std::string(optarg));
 				break;
+#ifndef NDEBUG
+			case 'd': {
+				std::string optstr(optarg);
+				std::istringstream stream(optstr);
+				std::getline(stream, kmerlist, ',');
+				std::getline(stream, trustedlist, ',');
+				break;
+			}
+#endif
 			case '?':
 			default:
 				std::cerr << "Unknown argument " << opt << std::endl;
@@ -109,7 +128,7 @@ int main(int argc, char* argv[]){
 	}
 
 
-	long double sampler_desiredfpr = 0.01;
+	long double sampler_desiredfpr = 0.0001;
 	long double trusted_desiredfpr = 0.0005;
 
 	//see if we have a bam
@@ -189,11 +208,32 @@ int main(int argc, char* argv[]){
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 
 	std::cerr << "Sampling kmers at rate " << alpha << std::endl;
-
+	recalibrateutils::kmer_cache_t subsampled_hashes;
+#ifndef NDEBUG
+//if a kmer list is provided, take kmers from it instead of sampling
+if(kmerlist == ""){
+#endif
+	//if not in debug mode, we sample kmers here.
 	htsiter::KmerSubsampler subsampler(file.get(), k, alpha);
 	//load subsampled bf.
 	//these are hashed kmers.
-	recalibrateutils::kmer_cache_t subsampled_hashes = recalibrateutils::subsample_kmers(subsampler);
+	subsampled_hashes = recalibrateutils::subsample_kmers(subsampler);
+#ifndef NDEBUG
+} else {
+	subsampled_hashes.fill(std::vector<uint64_t>());
+	std::ifstream kmersin(kmerlist);
+	bloom::Kmer kin(k);
+	for(std::string line; std::getline(kmersin, line); ){
+		kin.reset();
+		for(char c: line){
+			kin.push_back(c);
+		}
+		if(kin.valid()){
+			subsampled_hashes[kin.hashed_prefix()].push_back(kin.get_hashed());
+		}
+	}
+}
+#endif
 
 	uint64_t nsampled = 0;
 	for(std::vector<uint64_t>& v : subsampled_hashes){
@@ -204,6 +244,22 @@ int main(int argc, char* argv[]){
 	bloom::bloomary_t subsampled = init_bloomary(bloom::numbits(genomelen*1.5, sampler_desiredfpr),
 		bloom::numhashes(sampler_desiredfpr));
 	recalibrateutils::add_kmers_to_bloom(subsampled_hashes, subsampled);
+
+#ifndef NDEBUG
+	//ensure kmers added are actually queriable!
+	std::ifstream kmersin(kmerlist);
+	bloom::Kmer kin(k);
+	for(std::string line; std::getline(kmersin, line); ){
+		kin.reset();
+		for(char c: line){
+			kin.push_back(c);
+		}
+		if(kin.valid()){
+			assert(subsampled[kin.hashed_prefix()].query(kin.get_query()));
+		}
+	}
+#endif
+
 
 	//calculate thresholds
 	long double fpr = bloom::calculate_fpr(subsampled);
@@ -221,6 +277,11 @@ int main(int argc, char* argv[]){
 
 	long double p = bloom::calculate_phit(subsampled, alpha);
 	std::vector<int> thresholds = covariateutils::calculate_thresholds(k, p);
+#ifndef NDEBUG
+	thresholds = {0, 1, 2, 3, 3, 4, 5, 5, 6, 6, 6,
+		7, 7, 8, 8, 9, 9, 9, 10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 14, 15};
+#endif
+
 
 	std::vector<long double> cdf = covariateutils::log_binom_cdf(k,p);
 
@@ -239,6 +300,26 @@ int main(int argc, char* argv[]){
 	bloom::bloomary_t trusted = init_bloomary(bloom::numbits(genomelen*1.5, trusted_desiredfpr),
 		bloom::numhashes(trusted_desiredfpr));
 	recalibrateutils::add_kmers_to_bloom(trusted_hashes, trusted);
+
+#ifndef NDEBUG
+// check that all kmers in trusted list are actually trusted in our list.
+// it seems that lighter has quite a few hash collisions that end up making
+// it trust slightly more kmers than it should
+/*
+if(trustedlist != ""){
+	std::ifstream kmersin(trustedlist);
+	bloom::Kmer kin(k);
+	for(std::string line; std::getline(kmersin, line); ){
+		std::cerr << "Trusted kmer: " << line << std::endl;
+		kin.reset();
+		for(char c: line){
+			kin.push_back(c);
+		}
+		assert(trusted[kin.hashed_prefix()].query(kin.get_query()));
+	}
+}
+*/
+#endif
 
 	//use trusted kmers to find errors
 	std::cerr << "Finding errors" << std::endl;

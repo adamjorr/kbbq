@@ -13,6 +13,8 @@
 #include "covariateutils.hh"
 #include "kseq.hh"
 
+#define INFER_ERROR_BAD_QUAL 2
+
 //fwd declare
 namespace covariateutils{
 	struct dq_t;

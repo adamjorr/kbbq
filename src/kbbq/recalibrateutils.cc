@@ -57,9 +57,44 @@ kmer_cache_t find_trusted_kmers(HTSFile* file, const bloom::bloomary_t& sampled,
 
 covariateutils::CCovariateData get_covariatedata(HTSFile* file, const bloom::bloomary_t& trusted, int k){
 	covariateutils::CCovariateData data;
+#ifndef NDEBUG
+	std::ifstream errorsin("../../lighter-debug/corrected.txt");
+	int linenum = 0;
+	std::string line = "";
+#endif
 	while(file->next() >= 0){
 		readutils::CReadData read = file->get();
 		read.get_errors(trusted, k);
+#ifndef NDEBUG
+		//check that errors are same
+		std::getline(errorsin, line);
+		linenum++;
+		std::vector<bool> lighter_errors(line.length(), false);
+		std::transform(line.begin(), line.end(), lighter_errors.begin(),
+			[](char c) -> bool {return (c == '1');});
+		if( lighter_errors != read.errors){
+			std::string message("Line num: " + std::to_string(linenum));
+			std::array<size_t,2> anchors = bloom::find_longest_trusted_seq(read.seq, trusted, k);
+			std::cerr << "Anchors: [" << anchors[0] << ", " << anchors[1] << "]";
+			std::cerr << " (npos is " << std::string::npos << ")\n";
+			std::cerr << message << std::endl << "Errors: " ;
+			for(const bool& v : read.errors){
+				std::cerr << v;
+			}
+			std::cerr << std::endl;
+			std::cerr << "Seq: ";
+			for(const char& v : read.seq){
+				std::cerr << v;
+			}
+			std::cerr << std::endl;
+			// bloom::Kmer kmer(k);
+			// for(const char& c : std::string("CAGAATAGAAAGATTTATAAATTAAATACTC")){
+			// 	std::cerr << c << ":" << seq_nt4_table[c] << ":" << kmer.push_back(c) << "," ;
+			// }
+			// std::cerr << "Last kmer trusted?" << trusted[kmer.hashed_prefix()].query(kmer.get_query()) << std::endl; 
+		}
+		assert(lighter_errors == read.errors);
+#endif
 		data.consume_read(read);
 	}
 	return data;

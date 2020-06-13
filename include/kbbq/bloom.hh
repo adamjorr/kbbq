@@ -6,6 +6,7 @@
 #include <minion.hpp>
 #include <memory>
 #include <functional>
+#include <iostream>
 
 extern "C"{
 	#include <yak.h>
@@ -94,7 +95,9 @@ public:
 	//this is similar to yak_bf_insert()
 	int insert(unsigned long long hash); //try to insert the hash. return number of hashes that hit
 	int query_n(unsigned long long hash) const; //return the number of hashes that hit but don't insert.
-	inline bool query(unsigned long long hash) const;
+	inline bool query(unsigned long long hash) const {
+		return (this->query_n(hash) == this->bloom->n_hashes);
+	}
 	double fprate(unsigned long long n); //fprate given approximate number of times bf was loaded.
 };
 
@@ -128,8 +131,8 @@ std::array<size_t,2> find_longest_trusted_seq(std::string seq, const bloomary_t&
 
 //find the longest possible fix for the kmer at position (k-1) until the end
 //return the best character (multiple in case of a tie) and the index of the next untrusted base.
-//if the length of the fix is 0, no fix was found and correction should end.
-std::pair<std::vector<char>, int> find_longest_fix(std::string seq, const bloomary_t& t, int k);
+//if the length of the fix character vector is 0, no fix was found and correction should end.
+std::pair<std::vector<char>, size_t> find_longest_fix(std::string seq, const bloomary_t& t, int k);
 
 //calculate the false positive rate of the given bloom array.
 long double calculate_fpr(const bloomary_t& bf);

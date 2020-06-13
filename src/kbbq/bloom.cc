@@ -39,17 +39,19 @@ namespace bloom
 		for(size_t i = 0; i < k; ++i){
 			kmer.push_back(seq[i]);
 		}
-		kmer_present[0] = b[kmer.hashed_prefix()].query(kmer.get_query());
+		kmer_present[0] = kmer.valid() ? b[kmer.hashed_prefix()].query(kmer.get_query()) : false;
 		for(size_t i = k; i < seq.length(); ++i){
 			kmer.push_back(seq[i]);
-			if(kmer.valid()){
-				kmer_present[i-k+1] = b[kmer.hashed_prefix()].query(kmer.get_query());
-			} else {
-				kmer_present[i-k+1] = false;
-			}
+			kmer_present[i-k+1] = kmer.valid() ? b[kmer.hashed_prefix()].query(kmer.get_query()) : false;
 		}
 		for(size_t i = 0; i < seq.length(); ++i){
 			if(i < seq.length() - k + 1){ //add kmers now in our window
+				//debugging
+				/* if(seq == "AAGTGGGTTTCTCAGTATTTTATTCTTTTGATATTATCATACATGATACTATCGTCTTGATTTCTTCTTCAGAGAGTTTATTGTTGTTGTAGAAATACAATTGATTTTTGTGTATTGATTTTGTATCCTGCAGCTTTGCTGAATTTTATTT"){
+					std::string kmerstr(seq, i, k);
+					std::cerr << kmerstr << " " << kmer_present[i] << std::endl;
+				} */
+
 				if(kmer_present[i]){
 					++incount;
 				} else {
@@ -66,7 +68,6 @@ namespace bloom
 			kmers_in[i] = incount;
 			kmers_possible[i] = incount + outcount;
 		}
-
 		return {kmers_in, kmers_possible};
 	}
 
@@ -127,36 +128,43 @@ namespace bloom
 		return 0;
 	}
 
-	std::pair<std::vector<char>,int> find_longest_fix(std::string seq, const bloomary_t& trusted, int k){
+	std::pair<std::vector<char>,size_t> find_longest_fix(std::string seq, const bloomary_t& trusted, int k){
+		// std::cerr << seq << std::endl;
 		bloom::Kmer kmer(k);
 		std::vector<char> best_c{};
-		size_t best_l = 0;
-		for(char c: {'A','C','G','T'}){
+		size_t best_i = 0;
+		for(const char& c: {'A','C','G','T'}){
 			if(c == seq[k-1]){continue;}
 			seq[k-1] = c;
 			kmer.reset();
 			size_t i;
-			for(i = 0; i < 2 * k - 1; ++i){
+			size_t i_stop = std::max((size_t)2*k-1, seq.length());
+			for(i = 0; i < i_stop; ++i){ //i goes to max(2*k-1, seq.length())
 				char n = i < seq.length() ? seq[i] : get_next_trusted_char(kmer, trusted);
-				if(n == 0){
+				if(n == 0){ // no next trusted kmer
 					break;
 				}
 				kmer.push_back(n);
-				if(i >= k){
-					if(!trusted[kmer.hashed_prefix()].query(kmer.get_query())){
+				if(i >= k-1){
+					// std::cerr << kmer.size() << std::endl;
+					if(kmer.valid()){
+						if(!trusted[kmer.hashed_prefix()].query(kmer.get_query())){
+							break;
+						}
+					} else { //a non-ATCG base must've been added
 						break;
 					}
 				}
 			}
-			if(i > best_l){
+			if(i > best_i){
 				best_c.clear();
 				best_c.push_back(c);
-				best_l = i;
-			} else if (i == best_l){
+				best_i = i;
+			} else if (i == best_i){
 				best_c.push_back(c);
 			}
 		}
-		return std::make_pair(best_c, best_l);
+		return std::make_pair(best_c, best_i);
 	}
 
 	Bloom::Bloom(int nshift, int nhashes): ninserts(0),
@@ -200,9 +208,9 @@ namespace bloom
 		return count;
 	}
 
-	inline bool Bloom::query(unsigned long long hash) const{
-		return (this->query_n(hash) == this->bloom->n_hashes);
-	}
+	// inline bool Bloom::query(unsigned long long hash) const{
+	// 	return (this->query_n(hash) == this->bloom->n_hashes);
+	// }
 
 	//fprate given approximate number of times bf was loaded
 	double Bloom::fprate(unsigned long long n){
@@ -213,7 +221,7 @@ namespace bloom
 
 	//there are 2 ** shift bits in each filter.
 	int optimal_nhashes(int shift, int n){
-		return floor(1.0 * (std::pow(2,shift)) / n * log(2));
+		return ceil(1.0 * (std::pow(2,shift)) / n * log(2));
 	}
 
 	long double calculate_fpr(const bloomary_t& bf){
@@ -243,7 +251,7 @@ namespace bloom
 
 	int numhashes(long double fpr){
 		//k = -log2(fpr)
-		return floor(-log2(fpr));
+		return ceil(-log2(fpr));
 	}
 
 }

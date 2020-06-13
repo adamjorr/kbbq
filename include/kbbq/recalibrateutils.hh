@@ -8,6 +8,10 @@
 #include "htsiter.hh"
 #include "covariateutils.hh"
 
+//debug
+#include <fstream>
+
+
 //fwd declare covariateutils stuff
 namespace covariateutils{
 	class CCovariateData;

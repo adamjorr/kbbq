@@ -172,10 +172,23 @@ namespace readutils{
 		std::vector<size_t> in = overlapping[0];
 		std::vector<size_t> possible = overlapping[1];
 		for(size_t i = 0; i < errors.size(); ++i){
-			// std::cerr << "in " << i << ": " << in[i] << std::endl;
-			// std::cerr << "possible " << i << ": " << possible[i] << std::endl;
+			//debugging
+			/*
+			if(this->seq.substr(i,k) == "TACTATCGTCTTGATTTCTTCTTCAGAGAGT"){
+				std::cerr << this->seq << std::endl;
+				std::cerr << "in: "; 
+				for(size_t j = i; j < i+k; ++j){std::cerr << in[j] << ", ";}
+				std::cerr << std::endl;
+				std::cerr << "possible: ";
+				for(size_t j = i; j < i+k; ++j){std::cerr << possible[j] << ", ";}
+				std::cerr << std::endl;
+				std::cerr << "errors: ";
+				for(size_t j = i; j < i+k; ++j){std::cerr << (in[j] <= thresholds[possible[j]]) << ", ";}
+				std::cerr << std::endl;
+			} */
+			
 			if(possible[i] > k){std::cerr << "seq:" << this->seq << " " << possible[i] << "WARNING: Invalid i: " << i << std::endl;}
-			this->errors[i] = (in[i] <= thresholds[possible[i]] || this->qual[i] <= 6);
+			this->errors[i] = (in[i] <= thresholds[possible[i]] || this->qual[i] <= INFER_ERROR_BAD_QUAL);
 		}
 	}
 
@@ -205,6 +218,7 @@ namespace readutils{
 	//this is a chonky boi
 	void CReadData::get_errors(const bloom::bloomary_t& trusted, int k, int minqual){
 		std::string original_seq(this->seq);
+		std::cerr << "Correcting seq: " << original_seq << std::endl;
 		std::array<size_t,2> anchor = bloom::find_longest_trusted_seq(this->seq, trusted, k);
 		if(anchor[0] == std::string::npos){ //no trusted kmers in this read.
 			if(this->correct_one(trusted, k) == 0){
@@ -225,17 +239,20 @@ namespace readutils{
 				size_t start = i - k + 1; //seq containing all kmers that are affected
 				std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(this->seq.substr(start, std::string::npos), trusted, k);
 				std::vector<char> fix = std::get<0>(lf);
-				int fixlen = std::get<1>(lf); //new i is return value + start // i += r -k + 1
-				if(fixlen-k+1 > 0){
+				size_t fixlen = std::get<1>(lf); //new i is return value + start // i += r -k + 1
+				size_t next_untrusted_idx = start + fixlen;
+				if(next_untrusted_idx > i){
 					this->seq[i] = fix[0];
 					this->errors[i] = true;
-					i += fixlen - k + 1;
+					std::cerr << "Error detected at position " << i << ". Advancing " << fixlen - k + 1 << "." << std::endl;
+					i += fixlen - k + 1; // i = next_untrusted_idx
 					corrected = true;
 					if(fix.size() > 1){
 						multiple = true;
 					}
 				} else {
 					//couldn't find a fix; skip ahead and try again if long enough
+					std::cerr << "Couldn't fix position " << i << ". Skipping ahead " << k - 1 << "." << std::endl;
 					i += k-1; //move ahead and make i = k-1 as the first base in the new kmer
 					if(this->seq.length() - i + k <= (seq.length()/2) || this->seq.length() - i + k <= 2*k ){
 						//sequence not long enough. end this side.
@@ -248,26 +265,25 @@ namespace readutils{
 		if(anchor[0] != 0){
 			//the bad base is at anchor[0]-1, then include the full kmer for that base.
 			std::string sub = this->seq.substr(0, anchor[0] - 1 + k);
-			std::string revcomped;
-			for(auto it = sub.rbegin(); it != sub.rend(); it++){
-					int c = seq_nt4_table[*it];
-					char d = c < 4 ? seq_nt16_str[seq_nt16_table[3 - c]] : c;
-					revcomped.push_back(d); //complement then turn to 4-bit encoded then turn to char
-				}
-			for(int i = anchor[0] - 1; i > 0;){ //iterating in original seq space
-				int j = anchor[0] - 1 + k - 1 - i; //iterating in reversed space
-				int end = i + k; //seq containing all kmers that are affected is [0, end) in original space
-				//but [j -k + 1, npos) in reverse space. 
-				std::string sub = revcomped.substr(j - k + 1, std::string::npos); //get the right subsequence
+			std::string revcomped(sub.length(), 'N');
+			std::transform(sub.rbegin(), sub.rend(), revcomped.begin(),
+				[](char c) -> char {return seq_nt16_str[seq_nt16_table[('0' + 3-seq_nt4_table[c])]];});
+			for(int i = anchor[0] - 1; i > 0;){ //index of erroneous base in original seq
+				int j = anchor[0] - 1 -i + k - 1; //index of erroneous base in reversed seq
+				size_t start = j - k + 1; //seq containing all kmers that are affected
+				//but [j -k + 1, npos) in reverse space.
+				std::string sub = revcomped.substr(start, std::string::npos); //get the right subsequence
 				std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(sub, trusted, k);
 				std::vector<char> fix = std::get<0>(lf);
-				int fixlen = std::get<1>(lf); //new i is return value + start // i += r -k + 1
+				size_t fixlen = std::get<1>(lf); //new i is return value + start // i += r -k + 1
 				//new j should be return value + start // j += r - k + 1
-				if(fixlen-k+1 > 0){
-					// int c = seq_nt4_table[fix[0]];
-					// char d = c < 4 ? seq_nt16_str[seq_nt16_table[3 - c]] : c;
+				// new j should be fixlen + start; j += fixlen - k + 1
+				// j = fixlen + start; j = j - k + 1 + fixlen; j += fixlen -k + 1
+				size_t next_untrusted_idx = start + fixlen; // next untrusted idx in j space
+				if( next_untrusted_idx > j){
 					revcomped[j] = fix[0];
 					this->errors[i] = true;
+					std::cerr << "Error detected at position " << i << ". Advancing " << fixlen - k + 1 << "." << std::endl;
 					i -= fixlen - k + 1;
 					corrected = true;
 					if(fix.size() > 1){
@@ -275,6 +291,7 @@ namespace readutils{
 					}
 				} else {
 					//couldn't find a fix; skip ahead and try again if long enough
+					std::cerr << "Couldn't fix position " << i << ". Skipping ahead " << k - 1 << "." << std::endl;
 					i -= k-1;
 					if(i + k <= (seq.length()/2) || i + k <= 2*k ){
 						//sequence not long enough. end this side.
@@ -286,8 +303,15 @@ namespace readutils{
 		// check for overcorrection and fix it
 		if(corrected){
 			bool adjust = !multiple; //if there were any ties, don't adjust
+			// std::cerr << "Read corrected. Adjust threshold? " << adjust << std::endl;
+			std::cerr << "Errors before adjustment: ";
+			for(const bool& b: this->errors){
+				std::cerr << b;
+			}
+			std::cerr << std::endl;
 			int ocwindow = 20;
-			int threshold = 4;
+			int base_threshold = 4;
+			int threshold = base_threshold;
 			double occount = 0;
 			//check for overcorrection
 			std::vector<int> overcorrected_idx; //push_back overcorrected indices in order
@@ -300,7 +324,7 @@ namespace readutils{
 						++occount;
 					}
 				}
-				if(i > ocwindow && this->errors[i-ocwindow] && seq_nt4_table[this->seq[i-ocwindow]] < 4){ //decrement count for not in window
+				if(i >= ocwindow && this->errors[i-ocwindow] && seq_nt4_table[this->seq[i-ocwindow]] < 4){ //decrement count for not in window
 					if(this->qual[i-ocwindow] <= minqual){
 						occount -= 0.5;
 					} else {
@@ -308,12 +332,8 @@ namespace readutils{
 					}
 				}
 				//set threshold
-				if(adjust && i >= ocwindow){
-					threshold++;
-				}
-				if(adjust && i + ocwindow - 1 < this->seq.length()){
-					threshold--;
-				}
+				threshold = adjust && i >= ocwindow && i + ocwindow - 1 < this->seq.length() ? 
+					base_threshold + 1 : base_threshold;
 				//determine if overcorrected
 				if(occount > threshold && this->errors[i]){
 					overcorrected_idx.push_back(i);
