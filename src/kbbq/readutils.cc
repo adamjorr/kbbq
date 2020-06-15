@@ -218,7 +218,9 @@ namespace readutils{
 	//this is a chonky boi
 	void CReadData::get_errors(const bloom::bloomary_t& trusted, int k, int minqual){
 		std::string original_seq(this->seq);
+#ifndef NDEBUG
 		std::cerr << "Correcting seq: " << original_seq << std::endl;
+#endif
 		std::array<size_t,2> anchor = bloom::find_longest_trusted_seq(this->seq, trusted, k);
 		if(anchor[0] == std::string::npos){ //no trusted kmers in this read.
 			if(this->correct_one(trusted, k) == 0){
@@ -244,7 +246,9 @@ namespace readutils{
 				if(next_untrusted_idx > i){
 					this->seq[i] = fix[0];
 					this->errors[i] = true;
+#ifndef NDEBUG
 					std::cerr << "Error detected at position " << i << ". Advancing " << fixlen - k + 1 << "." << std::endl;
+#endif
 					i += fixlen - k + 1; // i = next_untrusted_idx
 					corrected = true;
 					if(fix.size() > 1){
@@ -252,7 +256,9 @@ namespace readutils{
 					}
 				} else {
 					//couldn't find a fix; skip ahead and try again if long enough
+#ifndef NDEBUG
 					std::cerr << "Couldn't fix position " << i << ". Skipping ahead " << k - 1 << "." << std::endl;
+#endif
 					i += k-1; //move ahead and make i = k-1 as the first base in the new kmer
 					if(this->seq.length() - i + k <= (seq.length()/2) || this->seq.length() - i + k <= 2*k ){
 						//sequence not long enough. end this side.
@@ -283,7 +289,9 @@ namespace readutils{
 				if( next_untrusted_idx > j){
 					revcomped[j] = fix[0];
 					this->errors[i] = true;
+#ifndef NDEBUG
 					std::cerr << "Error detected at position " << i << ". Advancing " << fixlen - k + 1 << "." << std::endl;
+#endif					
 					i -= fixlen - k + 1;
 					corrected = true;
 					if(fix.size() > 1){
@@ -291,7 +299,9 @@ namespace readutils{
 					}
 				} else {
 					//couldn't find a fix; skip ahead and try again if long enough
+#ifndef NDEBUG
 					std::cerr << "Couldn't fix position " << i << ". Skipping ahead " << k - 1 << "." << std::endl;
+#endif			
 					i -= k-1;
 					if(i + k <= (seq.length()/2) || i + k <= 2*k ){
 						//sequence not long enough. end this side.
@@ -304,11 +314,13 @@ namespace readutils{
 		if(corrected){
 			bool adjust = !multiple; //if there were any ties, don't adjust
 			// std::cerr << "Read corrected. Adjust threshold? " << adjust << std::endl;
+#ifndef NDEBUG
 			std::cerr << "Errors before adjustment: ";
 			for(const bool& b: this->errors){
 				std::cerr << b;
 			}
 			std::cerr << std::endl;
+#endif
 			int ocwindow = 20;
 			int base_threshold = 4;
 			int threshold = base_threshold;
