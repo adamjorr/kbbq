@@ -295,8 +295,31 @@ if(kmerlist == ""){
 
 	//get trusted kmers bf using subsampled bf
 	std::cerr << "Finding trusted kmers" << std::endl;
+
+	recalibrateutils::kmer_cache_t trusted_hashes;
+#ifndef NDEBUG
+//if a kmer list is provided, take kmers from it instead of finding them from sampled kmers
+if(trustedlist == ""){
+#endif
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
-	recalibrateutils::kmer_cache_t trusted_hashes = recalibrateutils::find_trusted_kmers(file.get(), subsampled, thresholds, k);
+	trusted_hashes = recalibrateutils::find_trusted_kmers(file.get(), subsampled, thresholds, k);
+#ifndef NDEBUG
+} else {
+	trusted_hashes.fill(std::vector<uint64_t>());
+	std::ifstream kmersin(trustedlist);
+	bloom::Kmer kin(k);
+	for(std::string line; std::getline(kmersin, line); ){
+		kin.reset();
+		for(char c: line){
+			kin.push_back(c);
+		}
+		if(kin.valid()){
+			trusted_hashes[kin.hashed_prefix()].push_back(kin.get_hashed());
+		}
+	}
+}
+#endif
+
 	bloom::bloomary_t trusted = init_bloomary(bloom::numbits(genomelen*1.5, trusted_desiredfpr),
 		bloom::numhashes(trusted_desiredfpr));
 	recalibrateutils::add_kmers_to_bloom(trusted_hashes, trusted);
@@ -305,12 +328,12 @@ if(kmerlist == ""){
 // check that all kmers in trusted list are actually trusted in our list.
 // it seems that lighter has quite a few hash collisions that end up making
 // it trust slightly more kmers than it should
-/*
+
 if(trustedlist != ""){
 	std::ifstream kmersin(trustedlist);
 	bloom::Kmer kin(k);
 	for(std::string line; std::getline(kmersin, line); ){
-		std::cerr << "Trusted kmer: " << line << std::endl;
+		// std::cerr << "Trusted kmer: " << line << std::endl;
 		kin.reset();
 		for(char c: line){
 			kin.push_back(c);
@@ -318,7 +341,7 @@ if(trustedlist != ""){
 		assert(trusted[kin.hashed_prefix()].query(kin.get_query()));
 	}
 }
-*/
+
 #endif
 
 	//use trusted kmers to find errors

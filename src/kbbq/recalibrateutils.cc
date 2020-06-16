@@ -77,16 +77,17 @@ covariateutils::CCovariateData get_covariatedata(HTSFile* file, const bloom::blo
 			std::array<size_t,2> anchors = bloom::find_longest_trusted_seq(read.seq, trusted, k);
 			std::cerr << "Anchors: [" << anchors[0] << ", " << anchors[1] << "]";
 			std::cerr << " (npos is " << std::string::npos << ")\n";
-			std::cerr << message << std::endl << "Errors: " ;
+			std::cerr << message << std::endl << "Errors : " ;
 			for(const bool& v : read.errors){
 				std::cerr << v;
 			}
 			std::cerr << std::endl;
-			std::cerr << "Seq: ";
-			for(const char& v : read.seq){
+			std::cerr << "Lighter: " ;
+			for(const bool& v : lighter_errors){
 				std::cerr << v;
 			}
 			std::cerr << std::endl;
+			std::cerr << "Seq: " << read.seq << std::endl;
 			// bloom::Kmer kmer(k);
 			// for(const char& c : std::string("CAGAATAGAAAGATTTATAAATTAAATACTC")){
 			// 	std::cerr << c << ":" << seq_nt4_table[c] << ":" << kmer.push_back(c) << "," ;

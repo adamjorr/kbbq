@@ -192,27 +192,38 @@ namespace readutils{
 		}
 	}
 
-	int CReadData::correct_one(const bloom::bloomary_t& t, int k){
+	size_t CReadData::correct_one(const bloom::bloomary_t& t, int k){
 		int best_fix_len = 0;
 		char best_fix_base;
-		size_t best_fix_pos = 0;
+		size_t best_fix_pos = std::string::npos;
 		for(size_t i = 0; i < this->seq.length(); ++i){
 			std::string original_seq(this->seq); //copy original
-			for(const char* c : {"A","C","G","T"}){
-				original_seq[i] = *c;
-				size_t start_pos = (size_t) std::min(std::max((int)i-k/2+1,0), (int)this->seq.length()-k);
-				int n_in = bloom::nkmers_in_bf(this->seq.substr(start_pos),t,k);
-				if(n_in > best_fix_len){
-					best_fix_base = *c;
-					best_fix_pos = i;
-					best_fix_len = n_in;
+			for(const char& c : {'A','C','G','T'}){
+				if(original_seq[i] == c){continue;}
+				original_seq[i] = c;
+				size_t start = i > k - 1 ? i - k + 1 : 0;
+				//test a kmer to see whether its worth counting them all
+				//i'm not sure any performance gain is worth it, but this is how Lighter does it
+				size_t magic_start = i > k/2 + 1 ? std::min(i - k/2 + 1, original_seq.length()-k) : 0;
+				bloom::Kmer magic_kmer(k);
+				for(size_t j = magic_start; j <= magic_start + k - 1; ++j){
+					magic_kmer.push_back(original_seq[j]);
+				}
+				//
+				if(t[magic_kmer.hashed_prefix()].query(magic_kmer.get_query())){
+					int n_in = bloom::nkmers_in_bf(original_seq.substr(start, std::string::npos),t,k);
+					if(n_in > best_fix_len){
+						best_fix_base = c;
+						best_fix_pos = i;
+						best_fix_len = n_in;
+					}
 				}
 			}
 		}
 		if(best_fix_len > 0){
 			this->seq[best_fix_pos] = best_fix_base;
 		}
-		return best_fix_len;
+		return best_fix_pos;
 	}
 
 	//this is a chonky boi
@@ -223,10 +234,12 @@ namespace readutils{
 #endif
 		std::array<size_t,2> anchor = bloom::find_longest_trusted_seq(this->seq, trusted, k);
 		if(anchor[0] == std::string::npos){ //no trusted kmers in this read.
-			if(this->correct_one(trusted, k) == 0){
+			size_t corrected_idx = this->correct_one(trusted, k);
+			if(corrected_idx == std::string::npos){
 				return;
 			} else {
 				anchor = bloom::find_longest_trusted_seq(this->seq, trusted, k);
+				this->errors[corrected_idx] = true;
 			}
 		}
 		if(anchor[0] == 0 && anchor[1] == std::string::npos){ //all kmers are trusted
@@ -244,16 +257,22 @@ namespace readutils{
 				size_t fixlen = std::get<1>(lf); //new i is return value + start // i += r -k + 1
 				size_t next_untrusted_idx = start + fixlen;
 				if(next_untrusted_idx > i){
+					if(fix.size() > 1){
+						multiple = true;
+						//to = ( i + kmerLength - 1 < readLength ) ? i + kmerLength - 1 : readLength - 1 ;
+						//maxto = largest index the fix goes to; next_untrusted_idx - 1
+						if(next_untrusted_idx - 1 <= std::max(start + (size_t)2*k - 1, this->seq.length())){
+							//if there's a tie and we haven't gone the max number of kmers, end correction
+							break;
+						}
+					}
 					this->seq[i] = fix[0];
 					this->errors[i] = true;
+					corrected = true;
 #ifndef NDEBUG
 					std::cerr << "Error detected at position " << i << ". Advancing " << fixlen - k + 1 << "." << std::endl;
 #endif
 					i += fixlen - k + 1; // i = next_untrusted_idx
-					corrected = true;
-					if(fix.size() > 1){
-						multiple = true;
-					}
 				} else {
 					//couldn't find a fix; skip ahead and try again if long enough
 #ifndef NDEBUG
@@ -274,7 +293,7 @@ namespace readutils{
 			std::string revcomped(sub.length(), 'N');
 			std::transform(sub.rbegin(), sub.rend(), revcomped.begin(),
 				[](char c) -> char {return seq_nt16_str[seq_nt16_table[('0' + 3-seq_nt4_table[c])]];});
-			for(int i = anchor[0] - 1; i > 0;){ //index of erroneous base in original seq
+			for(int i = anchor[0] - 1; i >= 0;){ //index of erroneous base in original seq
 				int j = anchor[0] - 1 -i + k - 1; //index of erroneous base in reversed seq
 				size_t start = j - k + 1; //seq containing all kmers that are affected
 				//but [j -k + 1, npos) in reverse space.
@@ -287,16 +306,20 @@ namespace readutils{
 				// j = fixlen + start; j = j - k + 1 + fixlen; j += fixlen -k + 1
 				size_t next_untrusted_idx = start + fixlen; // next untrusted idx in j space
 				if( next_untrusted_idx > j){
+					if(fix.size() > 1){
+						multiple = true;
+						if(next_untrusted_idx - 1 <= std::max(start + (size_t)2*k - 1, revcomped.length())){
+							//if there's a tie and we haven't gone the max number of kmers, end correction
+							break;
+						}
+					}
 					revcomped[j] = fix[0];
 					this->errors[i] = true;
+					corrected = true;
 #ifndef NDEBUG
 					std::cerr << "Error detected at position " << i << ". Advancing " << fixlen - k + 1 << "." << std::endl;
 #endif					
 					i -= fixlen - k + 1;
-					corrected = true;
-					if(fix.size() > 1){
-						multiple = true;
-					}
 				} else {
 					//couldn't find a fix; skip ahead and try again if long enough
 #ifndef NDEBUG
@@ -320,6 +343,7 @@ namespace readutils{
 				std::cerr << b;
 			}
 			std::cerr << std::endl;
+			std::cerr << "Seq After Correction: " << seq << std::endl;
 #endif
 			int ocwindow = 20;
 			int base_threshold = 4;

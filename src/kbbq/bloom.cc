@@ -12,7 +12,7 @@ namespace bloom
 		ret.reserve(seq.length() - k + 1);
 		for (int i = 0; i < seq.length(); ++i) {
 			kmer.push_back(seq[i]);
-			if (kmer.size() >= k) { //we have a full k-mer
+			if (kmer.valid()) { //we have a full k-mer
 				ret.push_back(kmer.get_hashed());
 			}
 		}
@@ -74,7 +74,7 @@ namespace bloom
 	int nkmers_in_bf(std::string seq, const bloomary_t& b, int k){
 		std::vector<uint64_t> hashes = hash_seq(seq, k);
 		int c = 0;
-		for(uint64_t h: hashes){
+		for(const uint64_t& h: hashes){
 			if(b[h&((1<<PREFIXBITS)-1)].query(h>>PREFIXBITS)){
 				c++;
 			}
