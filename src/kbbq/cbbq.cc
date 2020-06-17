@@ -387,7 +387,8 @@ if(trustedlist != ""){
 		for(int j = 0; j < dqs.qscoredq[i].size(); ++j){
 			if(data.qcov[i][j][1] != 0){
 				std::cerr << rgvals[i] << ", " << "q = " << j << ": " << dqs.qscoredq[i][j] << " (" <<
-					dqs.meanq[i] + dqs.rgdq[i] + dqs.qscoredq[i][j] << ")" << std::endl;
+					dqs.meanq[i] + dqs.rgdq[i] + dqs.qscoredq[i][j] << ")" << 
+					data.qcov[i][j][1] << " " << data.qcov[i][j][0] << std::endl;
 			}
 		}
 	}
