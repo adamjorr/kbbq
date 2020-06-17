@@ -188,7 +188,7 @@ namespace covariateutils{
 
 	void CCovariateData::consume_read(readutils::CReadData& read, int minscore){
 		for(int i = 0; i < read.seq.length(); ++i){
-			read.skips[i] = (read.skips[i] || seq_nt4_table[read.seq[i]] >= 4 || read.qual[i] < minscore);
+			read.skips[i] = (read.skips[i] || seq_nt4_table[read.seq[i]] >= 4); // || read.qual[i] < minscore);
 		}
 		rgcov.consume_read(read);
 		qcov.consume_read(read);
