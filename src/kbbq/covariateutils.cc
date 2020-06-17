@@ -146,10 +146,8 @@ namespace covariateutils{
 			q = read.qual[i];
 			//not skipped guarantees read.seq[i] != 'N' and q >= minscore
 			if(!read.skips[i] && seq_nt4_table[read.seq[i-1]] < 4){
-				if((*this)[rg].size() <= q){
-					(*this)[rg].resize(q+1);
-					(*this)[rg][q].resize(16); //size will always be 16
-				}
+				if((*this)[rg].size() <= q){(*this)[rg].resize(q+1);}
+				if((*this)[rg][q].size() < 16){(*this)[rg][q].resize(16);}
 				(*this)[rg][q].increment(dinuc_to_int(read.seq[i-1], read.seq[i]),std::array<unsigned long long, 2>({read.errors[i], 1}));
 			}
 		}
