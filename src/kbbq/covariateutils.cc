@@ -103,8 +103,8 @@ namespace covariateutils{
 			if(!read.skips[i]){
 				q = read.qual[i];
 				if((*this)[rg].size() <= q){(*this)[rg].resize(q+1);}
-				if((*this)[rg][q][!!read.second].size() <= i){(*this)[rg][q][!!read.second].resize(i+1);}
-				(*this)[rg][q][!!read.second].increment(i, std::array<unsigned long long, 2>({read.errors[i], 1}));
+				if((*this)[rg][q][read.second].size() <= i){(*this)[rg][q][!!read.second].resize(i+1);}
+				(*this)[rg][q][read.second].increment(i, std::array<unsigned long long, 2>({read.errors[i], 1}));
 			}
 		}
 	}
@@ -150,7 +150,6 @@ namespace covariateutils{
 					(*this)[rg].resize(q+1);
 					(*this)[rg][q].resize(16); //size will always be 16
 				}
-				(*this)[rg][q].resize(16); //size will always be 16
 				(*this)[rg][q].increment(dinuc_to_int(read.seq[i-1], read.seq[i]),std::array<unsigned long long, 2>({read.errors[i], 1}));
 			}
 		}
