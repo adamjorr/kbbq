@@ -84,7 +84,6 @@ inline std::vector<int> calculate_thresholds(unsigned long long k, long double p
 	return threshold;
 }
 
-//make sure first and second are 2 bit encoded nucleotides.
 //ensure there's no N!!!!
 inline int8_t dinuc_to_int(char first, char second){
 	int8_t f = seq_nt16_int[seq_nt16_table[first]];
