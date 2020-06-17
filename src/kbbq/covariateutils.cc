@@ -145,7 +145,7 @@ namespace covariateutils{
 		for(size_t i = 1; i < read.seq.length(); i++){
 			q = read.qual[i];
 			//not skipped guarantees read.seq[i] != 'N' and q >= minscore
-			if(!read.skips[i] && seq_nt4_table[read.seq[i-1]] < 4){
+			if(!read.skips[i] && seq_nt4_table[read.seq[i]] < 4 && seq_nt4_table[read.seq[i-1]] < 4){
 				if((*this)[rg].size() <= q){(*this)[rg].resize(q+1);}
 				if((*this)[rg][q].size() < 16){(*this)[rg][q].resize(16);}
 				(*this)[rg][q].increment(dinuc_to_int(read.seq[i-1], read.seq[i]),std::array<unsigned long long, 2>({read.errors[i], 1}));
@@ -184,9 +184,9 @@ namespace covariateutils{
 	}
 
 	void CCovariateData::consume_read(readutils::CReadData& read, int minscore){
-		for(int i = 0; i < read.seq.length(); ++i){
-			read.skips[i] = (read.skips[i] || seq_nt4_table[read.seq[i]] >= 4); // || read.qual[i] < minscore);
-		}
+		// for(int i = 0; i < read.seq.length(); ++i){
+			// read.skips[i] = (read.skips[i] || seq_nt4_table[read.seq[i]] >= 4); // || read.qual[i] < minscore);
+		// }
 		rgcov.consume_read(read);
 		qcov.consume_read(read);
 		cycov.consume_read(read);
