@@ -385,8 +385,10 @@ if(trustedlist != ""){
 	int i = 0;
 	for(int i = 0; i < dqs.qscoredq.size(); ++i){
 		for(int j = 0; j < dqs.qscoredq[i].size(); ++j){
-			std::cerr << rgvals[i] << ", " << "q = " << j << ": " << dqs.qscoredq[i][j] << " (" <<
-				dqs.meanq[i] + dqs.rgdq[i] + dqs.qscoredq[i][j] << ")" << std::endl;
+			if(data.qcov[i][j][1] != 0){
+				std::cerr << rgvals[i] << ", " << "q = " << j << ": " << dqs.qscoredq[i][j] << " (" <<
+					dqs.meanq[i] + dqs.rgdq[i] + dqs.qscoredq[i][j] << ")" << std::endl;
+			}
 		}
 	}
 	// std::cerr << "cycledq:";
