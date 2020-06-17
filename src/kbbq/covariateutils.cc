@@ -8,6 +8,7 @@ namespace covariateutils{
 		if(j >= normal_prior.size()){
 			for(int i = normal_prior.size(); i < j+1; ++i){
 				errno = 0;
+				// long double prior_linspace = .9l * std::exp(-std::pow((long double)i,2.0l) * 2.0l)
 				normal_prior.push_back(std::log(.9l * std::exp(-(std::pow(((long double)i/.5l),2.0l))/2.0l)));
 				if(errno != 0){ //if an underflow happens just set the prior to smallest possible #
 					normal_prior[i] = std::numeric_limits<long double>::lowest();
@@ -145,7 +146,10 @@ namespace covariateutils{
 			q = read.qual[i];
 			//not skipped guarantees read.seq[i] != 'N' and q >= minscore
 			if(!read.skips[i] && seq_nt4_table[read.seq[i-1]] < 4){
-				if((*this)[rg].size() <= q){(*this)[rg].resize(q+1);}
+				if((*this)[rg].size() <= q){
+					(*this)[rg].resize(q+1);
+					(*this)[rg][q].resize(16); //size will always be 16
+				}
 				(*this)[rg][q].resize(16); //size will always be 16
 				(*this)[rg][q].increment(dinuc_to_int(read.seq[i-1], read.seq[i]),std::array<unsigned long long, 2>({read.errors[i], 1}));
 			}
