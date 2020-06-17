@@ -408,7 +408,7 @@ namespace readutils{
 			int q = this->qual[i];
 			if(q >= minqual){
 				recalibrated[i] = dqs.meanq[rg] + dqs.rgdq[rg] + dqs.qscoredq[rg][q] +
-				dqs.cycledq[rg][q][this->second][i];
+					dqs.cycledq[rg][q][this->second][i];
 				if(i > 0){
 					int first = seq_nt4_table[this->seq[i-1]];
 					int second = seq_nt4_table[this->seq[i]];
