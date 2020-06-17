@@ -377,13 +377,17 @@ if(trustedlist != ""){
 
 	std::cerr << "dqs:\n" << "meanq: ";
 	print_vec<int>(dqs.meanq);
-	std::cerr << "rgdq:";
-	print_vec<int>(dqs.rgdq);
-	std::cerr << "qscoredq:";
+	std::cerr << "rgdq:" << std::endl;
+	for(int i = 0; i < dqs.rgdq.size(); ++i){
+		std::cerr << rgvals[i] << ": " << dqs.rgdq[i] << " (" << meanq[i] + dq.rgdq[i] << ")" << std::endl;
+	}
+	std::cerr << "qscoredq:" << std::endl;
 	int i = 0;
-	for(const std::vector<int>& v : dqs.qscoredq){
-		std::cerr << i++ << ": ";
-		print_vec<int>(v);
+	for(int i = 0; i < dqs.qscoredq.size(); ++i){
+		for(int j = 0; j < dqs.qscoredq[i].size(); ++j){
+			std::cerr << rgvals[i] << ", " << "q = " << j << ": " << dqs.qscoredq[i][j] << " (" <<
+				meanq[i] + dq.rgdq[i] + dq.qscoredq[i][j] << ")" << std::endl;
+		}
 	}
 	// std::cerr << "cycledq:";
 	// i = 0;
