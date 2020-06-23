@@ -56,13 +56,15 @@ namespace readutils{
 			inline int get_rg_int() const{return this->rg_to_int[this->rg];}
 			inline std::string get_pu() const{return this->rg_to_pu[this->rg];}
 			std::vector<bool> not_skipped_errors() const;
-			//fill errors attribute given the bloom filter and thresholds.
+			//fill errors attribute given sampled kmers and thresholds.
 			void infer_read_errors(const bloom::bloomary_t& b, const std::vector<int>& thresholds, int k);
 			//fix one error and return the index of the fixed base; std::string::npos if no fixes are found
 			size_t correct_one(const bloom::bloomary_t& t, int k);
 			static void load_rgs_from_bamfile(bam_hdr_t* header);
-			void get_errors(const bloom::bloomary_t& trusted, int k, int minqual = 6);
+			//fill errors attribute given trusted kmers
+			std::vector<bool> get_errors(const bloom::bloomary_t& trusted, int k, int minqual = 6, bool first_call = true);
 			std::vector<int> recalibrate(const covariateutils::dq_t& dqs, int minqual = 6) const;
+			CReadData substr(size_t pos = 0, size_t count = std::string::npos) const;
 
 	};
 }
