@@ -129,7 +129,7 @@ int main(int argc, char* argv[]){
 
 
 	long double sampler_desiredfpr = 0.0001;
-	long double trusted_desiredfpr = 0.0005;
+	long double trusted_desiredfpr = 0.0000001;
 
 	//see if we have a bam
 	htsFormat fmt;

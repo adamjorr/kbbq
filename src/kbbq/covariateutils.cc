@@ -144,7 +144,6 @@ namespace covariateutils{
 		int q;
 		for(size_t i = 1; i < read.seq.length(); i++){
 			q = read.qual[i];
-			//not skipped guarantees read.seq[i] != 'N' and q >= minscore
 			if(!read.skips[i] && seq_nt4_table[read.seq[i]] < 4 && seq_nt4_table[read.seq[i-1]] < 4){
 				if((*this)[rg].size() <= q){(*this)[rg].resize(q+1);}
 				if((*this)[rg][q].size() < 16){(*this)[rg][q].resize(16);}
@@ -184,6 +183,7 @@ namespace covariateutils{
 	}
 
 	void CCovariateData::consume_read(readutils::CReadData& read, int minscore){
+		//TODO: readd skips once the error correction code works properly
 		// for(int i = 0; i < read.seq.length(); ++i){
 			// read.skips[i] = (read.skips[i] || seq_nt4_table[read.seq[i]] >= 4); // || read.qual[i] < minscore);
 		// }

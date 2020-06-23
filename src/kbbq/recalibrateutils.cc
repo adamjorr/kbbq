@@ -64,7 +64,7 @@ covariateutils::CCovariateData get_covariatedata(HTSFile* file, const bloom::blo
 #endif
 	while(file->next() >= 0){
 		readutils::CReadData read = file->get();
-		read.get_errors(trusted, k);
+		read.get_errors(trusted, k, 2);
 #ifndef NDEBUG
 		//check that errors are same
 		std::getline(errorsin, line);
@@ -75,6 +75,9 @@ covariateutils::CCovariateData get_covariatedata(HTSFile* file, const bloom::blo
 		if( lighter_errors != read.errors){
 			std::string message("Line num: " + std::to_string(linenum));
 			std::array<size_t,2> anchors = bloom::find_longest_trusted_seq(read.seq, trusted, k);
+			if(anchors[1] - anchors[0] - k + 1 >= k){ //number of trusted kmers >= k
+				anchors[1] = bloom::adjust_right_anchor(anchors[1], read.seq, trusted, k);
+			}
 			std::cerr << "Anchors: [" << anchors[0] << ", " << anchors[1] << "]";
 			std::cerr << " (npos is " << std::string::npos << ")\n";
 			std::cerr << message << std::endl << "Errors : " ;
