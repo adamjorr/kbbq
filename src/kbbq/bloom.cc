@@ -254,7 +254,66 @@ namespace bloom
 		return ceil(-log2(fpr));
 	}
 
+	//ensure anchor >= k - 1 before this.
+	size_t adjust_right_anchor(size_t anchor, std::string seq, const bloomary_t& trusted, int k){
+		bloom::Kmer kmer(k);
+		for(size_t i = anchor + 1 - k; i < anchor+1; ++i){
+			kmer.push_back(seq[i]);
+		}
+		for(const char& c : {'A','C','G','T'}){
+			if(seq[anchor+1] == c){continue;}
+			bloom::Kmer new_kmer = kmer;
+			new_kmer.push_back(c);
+			//if this fix works, we don't need to adjust the anchor if it fixes all remaining kmers.
+			for(size_t i = 0; new_kmer.valid() &&
+			trusted[new_kmer.hashed_prefix()].query(new_kmer.get_query()) && anchor + 2 + i < seq.length() &&
+			i < k; ++i){
+				std::cerr << "i: " << i << " anchor + 2 + i: " << anchor + 2 + i << " len: " << seq.length() << std::endl;
+				new_kmer.push_back(seq[anchor+2+i]);
+				//if we get to the end of the altered kmers and they're all fixed, the anchor is fine.
+				if((anchor + 2 + i == seq.length()-1 || i == k - 1) && new_kmer.valid() &&
+				trusted[new_kmer.hashed_prefix()].query(new_kmer.get_query())){
+					return anchor;
+				}
+			}
+		} // if we make it through this loop, we need to adjust the anchor.
+		//we will test fixes starting with halfway through the last kmer to the end.
+		//how much we're winding back the anchor; anchor+1-i-k must be > 0.
+		for(int i = k/2-1; i >= 0 && anchor+1 > i+k; --i){ 
+			kmer.reset();
+			for(size_t j = anchor + 1 - i - k; j < anchor + 1 - i; ++j){ //start can be -1 from this
+				kmer.push_back(seq[j]);
+			}
+			for(const char& c: {'A','C','G','T'}){
+				if(seq[anchor+1-i] == c){continue;}
+				bloom::Kmer new_kmer = kmer;
+				new_kmer.push_back(c);
+				std::cerr << "i: " << i << " anchor + 2 - i: " << anchor + 2 - i << " kmer:" << seq.substr(anchor+1-i-k,k-1) << c << std::endl;
+				for(size_t j = 0; new_kmer.valid() &&
+				trusted[new_kmer.hashed_prefix()].query(new_kmer.get_query()) && anchor+2-i+j < seq.length() &&
+				j <= k/2; ++j){
+					new_kmer.push_back(seq[anchor+2-i+j]);
+					if(j == k/2 && new_kmer.valid() &&
+					trusted[new_kmer.hashed_prefix()].query(new_kmer.get_query())){
+						return anchor-i; //the idx before the new base that needs fixing
+					} //only return here if j == k/2, NOT if you run out of sequence!!!
+				}
+			}
+		}
+		//couldn't find a better adjustment
+		return anchor;
+	} 
+
+
+
+
+
+
+
+
 }
+
+
 
 
 

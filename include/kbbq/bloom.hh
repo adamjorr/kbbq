@@ -122,6 +122,10 @@ std::array<std::vector<size_t>,2> overlapping_kmers_in_bf(std::string seq, const
 //return the total number of kmers in b
 int nkmers_in_bf(std::string seq, const bloomary_t& b, int k);
 
+//given a kmer, get the next character (in ACGT order) that would create a trusted
+//kmer when appended and return it. Return 0 if none would be trusted.
+char get_next_trusted_char(const bloom::Kmer& kmer, const bloomary_t& trusted);
+
 //return the INCLUSIVE indices bounding the largest stretch of trusted sequence
 //if the first value is -1, there are no trusted kmers.
 //if the 2nd value is -1 (== std::string::npos), until the end of the string is trusted.
@@ -146,6 +150,11 @@ uint64_t numbits(uint64_t numinserts, long double fpr);
 //given the desired fpr, calculate the number of hash fn's needed
 //assuming we use the optimal number of bits
 int numhashes(long double fpr);
+
+//given a sequence and an anchor, see if the anchor could be improved by moving it to the left.
+//this is used in the correction step.
+//ensure anchor >= k before this function is called.
+size_t adjust_right_anchor(size_t anchor, std::string seq, const bloomary_t& trusted, int k);
 
 }
 #endif
