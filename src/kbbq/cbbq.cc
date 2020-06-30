@@ -48,8 +48,10 @@ bloom::bloomary_t init_bloomary(uint64_t nbits, int nhashes){
 	int eachbits = nbits / ret.size() + 1; //+1 rounds up
 	std::cerr << "Requested a total of " << nbits << " bits." << std::endl;
 	std::cerr << "Size of each bloom filter: " << eachbits << " bits." << std::endl;
+	std::cerr << "Shift size of each bloom filter: " << ceil(log2(eachbits)) << "." << std::endl;
 	std::cerr << "Number of hash functions: " << nhashes << "." << std::endl;
 	for(size_t i = 0; i < ret.size(); ++i){
+		//n_shift is 2^X bits
 		bloom::Bloom n(ceil(log2(eachbits)), nhashes);
 		ret[i] = std::move(n);
 	}
@@ -129,7 +131,7 @@ int main(int argc, char* argv[]){
 
 
 	long double sampler_desiredfpr = 0.0001;
-	long double trusted_desiredfpr = 0.0000001;
+	long double trusted_desiredfpr = 0.000000001;
 
 	//see if we have a bam
 	htsFormat fmt;
