@@ -255,59 +255,51 @@ namespace readutils{
 		//right side
 		if(anchor[1] != std::string::npos){
 			if(anchor[1] - anchor[0] - k + 1 >= k){ //number of trusted kmers >= k
-				size_t old_anchor = anchor[1];
-				anchor[1] = bloom::adjust_right_anchor(anchor[1], this->seq, trusted, k);
-				multiple = multiple || (anchor[1] != old_anchor);
+				bool current_multiple;
+				std::tie(anchor[1], current_multiple) = bloom::adjust_right_anchor(anchor[1], this->seq, trusted, k);
+#ifndef NDEBUG
+				std::cerr << "Adjust R Multiple: " << current_multiple << std::endl;
+#endif
+				multiple = multiple || current_multiple;
 			}
 			for(size_t i = anchor[1] + 1; i < this->seq.length();){
 				size_t start = i - k + 1; //seq containing all kmers that are affected
-				std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(this->seq.substr(start, std::string::npos), trusted, k);
-				std::vector<char> fix = std::get<0>(lf);
-				size_t fixlen = std::get<1>(lf); //new i is return value + start // i += r -k + 1
+				std::vector<char> fix;
+				size_t fixlen;
+				bool current_multiple;
+				std::tie(fix, fixlen, current_multiple) = bloom::find_longest_fix(this->seq.substr(start, std::string::npos), trusted, k);
+#ifndef NDEBUG
+				std::cerr << "R fix Multiple: " << current_multiple << std::endl;
+#endif
+				multiple = multiple || current_multiple;
 				size_t next_untrusted_idx = start + fixlen;
 				if(next_untrusted_idx > i){
 					if(fix.size() > 1){
-						//if the fix is only 1 base, we can break the tie by assuming the better fix
-						//is a copy of the previous base.
-						/*
-						// std::cerr << "Original Fix: ";
-						// for(char c : fix){
-						// 	std::cerr << c << " ";
-						// }
-						// std::cerr << std::endl;
-						// if(next_untrusted_idx == i + 1){
-						// 	for(const char& c: fix){
-						// 		if(c == this->seq[i]){
-						// 			fix = {c};
-						// 			break;
-						// 		}
-						// 	}
-						// }
-						// std::cerr << "After Tiebreaker Fix: ";
-						// for(char c : fix){
-						// 	std::cerr << c << " ";
-						// }
-						// std::cerr << std::endl;
-						*/
-						if(fix.size() > 1){ //if we can't break the tie
-							multiple = true;
-							//to = ( i + kmerLength - 1 < readLength ) ? i + kmerLength - 1 : readLength - 1 ;
-							//maxto = largest index the fix goes to; next_untrusted_idx - 1
-							if(next_untrusted_idx - 1 <= std::max(start + (size_t)2*k - 1, this->seq.length())){
-								// size_t trimstart = next_untrusted_idx;
-								bad_suffix = i; //readlength - trimstart
-	#ifndef NDEBUG
-								//if there's a tie and we haven't gone the max number of kmers, end correction
-								std::cerr << "i: " << i << " next_untrusted_idx " << next_untrusted_idx << std::endl;
-								std::cerr << "Fixlen is " << fixlen << " Fix: ";
-								for(char c : fix){
-									std::cerr << c << " ";
-								}
-								std::cerr << std::endl;
-								std::cerr << "Tie and fix not long enough; ending correction early!" << std::endl;
-	#endif
-								break;
+						// multiple = true; //we take care of this in function
+						//to = ( i + kmerLength - 1 < readLength ) ? i + kmerLength - 1 : readLength - 1 ;
+						//maxto = largest index the fix goes to; next_untrusted_idx
+						//if( maxTo <= to || to - i + 1 < kmerLength ) ...
+						//if(next_untrusted_idx <= )
+						size_t largest_possible_idx = std::max(start + (size_t)2*k - 1, this->seq.length()-1);
+#ifndef NDEBUG
+						std::cerr << "next_untrusted_idx: " << next_untrusted_idx << std::endl;
+						std::cerr << "largest_possible_idx (to): " << largest_possible_idx << std::endl;
+						std::cerr << "largest_possible_idx-i+1: " << largest_possible_idx-i+1 << std::endl;
+#endif
+						if(next_untrusted_idx <= largest_possible_idx || largest_possible_idx - i + 1 < k){
+							// size_t trimstart = next_untrusted_idx;
+							bad_suffix = i; //readlength - trimstart
+#ifndef NDEBUG
+							//if there's a tie and we haven't gone the max number of kmers, end correction
+							std::cerr << "i: " << i << " next_untrusted_idx " << next_untrusted_idx << std::endl;
+							std::cerr << "Fixlen is " << fixlen << " Fix: ";
+							for(char c : fix){
+								std::cerr << c << " ";
 							}
+							std::cerr << std::endl;
+							std::cerr << "Tie and fix not long enough; ending correction early!" << std::endl;
+#endif
+							break;
 						}
 					}
 					this->seq[i] = fix[0];
@@ -341,12 +333,14 @@ namespace readutils{
 				[](char c) -> char {return seq_nt16_str[seq_nt16_table[('0' + 3-seq_nt4_table[c])]];});
 			//
 			if(anchor[1] - anchor[0] - k + 1 >= k){ //number of trusted kmers >= k
-				std::cerr << "Anchor: " << anchor[0];
-				size_t old_anchor = anchor[0];
-				size_t left_adjust = bloom::adjust_right_anchor(revcomped.length()-anchor[0]-1, revcomped, trusted, k);
+				size_t left_adjust;
+				bool current_multiple;
+				std::tie(left_adjust, current_multiple) = bloom::adjust_right_anchor(revcomped.length()-anchor[0]-1, revcomped, trusted, k);
 				anchor[0] = revcomped.length()-left_adjust-1; //change back to original coordinates
-				multiple = multiple || (anchor[0] != old_anchor);
-				std::cerr << " Adjusted: " << anchor[0] << std::endl;
+#ifndef NDEBUG
+				std::cerr << "Adjust L Multiple: " << current_multiple << std::endl;
+#endif
+				multiple = multiple || current_multiple;
 			}
 			//
 			for(int i = anchor[0] - 1; i >= 0;){ //index of erroneous base in original seq
@@ -354,16 +348,22 @@ namespace readutils{
 				size_t start = j - k + 1; //seq containing all kmers that are affected
 				//but [j -k + 1, npos) in reverse space.
 				std::string sub = revcomped.substr(start, std::string::npos); //get the right subsequence
-				std::pair<std::vector<char>, int> lf = bloom::find_longest_fix(sub, trusted, k);
-				std::vector<char> fix = std::get<0>(lf);
-				size_t fixlen = std::get<1>(lf); //new i is return value + start // i += r -k + 1
+				std::vector<char> fix;
+				size_t fixlen;
+				bool current_multiple;
+				std::tie(fix, fixlen, current_multiple) = bloom::find_longest_fix(sub, trusted, k);
+#ifndef NDEBUG
+				std::cerr << "L Fix Multiple: " << current_multiple << std::endl;
+#endif
+				multiple = multiple || current_multiple;
+				//new i is return value + start // i += r -k + 1
 				//new j should be return value + start // j += r - k + 1
 				// new j should be fixlen + start; j += fixlen - k + 1
 				// j = fixlen + start; j = j - k + 1 + fixlen; j += fixlen -k + 1
 				size_t next_untrusted_idx = start + fixlen; // next untrusted idx in j space
 				if( next_untrusted_idx > j){
 					if(fix.size() > 1){
-						multiple = true;
+						// multiple = true; // we don't have to do this here because we do it in function
 						if(next_untrusted_idx - 1 <= std::max(start + (size_t)2*k - 1, revcomped.length())){
 							//if there's a tie and we haven't gone the max number of kmers, end correction
 							bad_prefix = i;
@@ -393,22 +393,41 @@ namespace readutils{
 				}
 			}
 		}
+#ifndef NDEBUG
+		std::cerr << "Anchors: [" << anchor[0] << ", " << anchor[1] << "]" << std::endl; 
+#endif
+
+
 		// check for overcorrection and fix it
 		if(corrected){
 			bool adjust = true;
 			//check that no trusted kmers were "fixed"
 			bloom::Kmer kmer(k);
-			for(size_t i = 0; i < original_seq.length(); ++i){
+			size_t trusted_start = std::string::npos;
+			size_t trusted_end = 0;
+			for(size_t i = 0; i < original_seq.length() && adjust == true; ++i){
 				kmer.push_back(original_seq[i]);
 				if(i >= k-1 && kmer.valid() && trusted[kmer.hashed_prefix()].query(kmer.get_query())){
-					if(!(this->errors[i])){
-						continue;
-					} else {
-						adjust = false;
-						break;
+					//this will only happen when the end was from a previous island of trusted sequence
+					//so we don't need to re-check those positions.
+					trusted_start = i-k+1 < trusted_end+1 ? trusted_end+1 : std::min(i-k+1, trusted_start);
+					trusted_end = i;
+				}
+				if(i > trusted_end){
+					//we clear everything from beginning to end
+					for(size_t j = trusted_start; j <= trusted_end; ++j){
+						if(this->errors[j]){
+							adjust = false;
+							break;
+						}
 					}
+					trusted_start = std::string::npos;
+					trusted_end = 0;
 				}
 			}
+#ifndef NDEBUG
+			std::cerr << "Adjust: " << adjust << " Multiple: " << multiple << std::endl;
+#endif
 			adjust = adjust && !multiple;//made it through the loop and no ties during correction
 			// std::cerr << "Read corrected. Adjust threshold? " << adjust << std::endl;
 #ifndef NDEBUG
@@ -445,15 +464,19 @@ namespace readutils{
 				threshold = adjust && i >= ocwindow && i + ocwindow - 1 < this->seq.length() ? 
 					base_threshold + 1 : base_threshold;
 				//determine if overcorrected
+#ifndef NDEBUG
 				std::cerr << "Occount: " << occount << " Threshold: " << threshold << std::endl;
+#endif
 				if(occount > threshold && this->errors[i]){
 					overcorrected_idx.push_back(i);
 				}
 
 			}
+#ifndef NDEBUG
 			std::cerr << "Overcorrected indices (" << overcorrected_idx.size() << "): ";
 			std::copy(overcorrected_idx.begin(), overcorrected_idx.end(), std::ostream_iterator<int>(std::cerr, ", "));
 			std::cerr << std::endl;
+#endif
 
 			if(overcorrected_idx.size() > 0){
 				int start = overcorrected_idx[0]-k+1; //the beginningmost position to check
@@ -477,14 +500,18 @@ namespace readutils{
 			}
 		} else { //we couldn't find a correction so cut up the read and try again
 			if(first_call && bad_prefix > 0 && (bad_prefix > this->seq.length() / 2 || bad_prefix > 2*k)){
+#ifndef NDEBUG			
 				std::cerr << "bad_prefix: " << bad_prefix << std::endl;
+#endif
 				CReadData subread = this->substr(0, bad_prefix);
 				std::vector<bool> suberrors = subread.get_errors(trusted, k, minqual, false);
 				std::copy(suberrors.begin(), suberrors.end(), this->errors.begin());
 			}
 			if(first_call && bad_suffix < std::string::npos && bad_suffix < this->seq.length() &&
 			(this->seq.length()-bad_suffix > this->seq.length()/2 || this->seq.length()-bad_suffix > 2*k)){
+#ifndef NDEBUG
 				std::cerr << "bad_suffix: " << bad_suffix << std::endl;
+#endif
 				CReadData subread = this->substr(bad_suffix, std::string::npos);
 				std::vector<bool> suberrors = subread.get_errors(trusted, k, minqual, false);
 				std::copy(suberrors.begin(), suberrors.end(), this->errors.begin()+bad_suffix);
