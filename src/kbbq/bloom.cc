@@ -128,13 +128,16 @@ namespace bloom
 		return 0;
 	}
 
-	std::pair<std::vector<char>,size_t> find_longest_fix(std::string seq, const bloomary_t& trusted, int k){
+	std::tuple<std::vector<char>,size_t,bool> find_longest_fix(std::string seq, const bloomary_t& trusted, int k){
 		// std::cerr << seq << std::endl;
 		bloom::Kmer kmer(k);
 		std::vector<char> best_c{};
 		size_t best_i = 0;
+		bool single = false; //this pair of flags will be used to determine whether
+		bool multiple = false; //multiple corrections were considered
+		char unfixed_char = seq[k-1];
 		for(const char& c: {'A','C','G','T'}){
-			if(c == seq[k-1]){continue;}
+			if(c == unfixed_char){continue;}
 			seq[k-1] = c;
 			kmer.reset();
 			size_t i;
@@ -148,8 +151,16 @@ namespace bloom
 				if(i >= k-1){
 					// std::cerr << kmer.size() << std::endl;
 					if(kmer.valid()){
+#ifndef NDEBUG
+						std::cerr << std::string(kmer) << " " << i << " " << trusted[kmer.hashed_prefix()].query(kmer.get_query()) << std::endl;
+#endif
 						if(!trusted[kmer.hashed_prefix()].query(kmer.get_query())){
 							break;
+						} else { //we have a trusted kmer with this fix
+							if(i == k-1){ //the first possible trusted kmer
+								if(single){multiple = true;} //if we had one already, set multiple
+								single = true;
+							}
 						}
 					} else { //a non-ATCG base must've been added
 						break;
@@ -157,19 +168,26 @@ namespace bloom
 				}
 			}
 			if(i > best_i){
+#ifndef NDEBUG
+				std::cerr << std::string(kmer) << " " << i << std::endl;
+#endif
 				best_c.clear();
 				best_c.push_back(c);
 				best_i = i;
 			} else if (i == best_i){
+#ifndef NDEBUG
+				std::cerr << std::string(kmer) << " " << i << " Tie" << std::endl;
+#endif
 				best_c.push_back(c);
 			}
 		}
-		return std::make_pair(best_c, best_i);
+		return std::make_tuple(best_c, best_i, multiple);
 	}
 
 	Bloom::Bloom(int nshift, int nhashes): ninserts(0),
 		//-3 is divide by 8, so we have nshift bits
-		bloom(yak_bf_init(nshift, nhashes), [](yak_bf_t* p){yak_bf_destroy(p);}) {
+		bloom(yak_bf_init(std::min(std::max(nshift, YAK_BLK_SHIFT), 64-YAK_BLK_SHIFT), nhashes),
+			[](yak_bf_t* p){yak_bf_destroy(p);}) {
 		//nshift + YAK_BLK_SHIFT should be less than 64 (nshift <= 55)
 		//nshift should be greater than or equal to YAK_BLK_SHIFT (9)
 		//thus 9 <= nshift <= 55
@@ -255,9 +273,12 @@ namespace bloom
 	}
 
 	//ensure anchor >= k - 1 before this.
-	size_t adjust_right_anchor(size_t anchor, std::string seq, const bloomary_t& trusted, int k){
+	std::pair<size_t,bool> adjust_right_anchor(size_t anchor, std::string seq, const bloomary_t& trusted, int k){
 		bloom::Kmer kmer(k);
-		for(size_t i = anchor + 1 - k; i < anchor+1; ++i){
+		bool multiple = false; //multiple corrections were considered
+		size_t modified_idx = anchor + 1;
+		assert((anchor >= k - 1));
+		for(size_t i = modified_idx - k + 1; i < modified_idx; ++i){
 			kmer.push_back(seq[i]);
 		}
 		for(const char& c : {'A','C','G','T'}){
@@ -266,57 +287,60 @@ namespace bloom
 			new_kmer.push_back(c);
 			//if this fix works, we don't need to adjust the anchor if it fixes all remaining kmers.
 			for(size_t i = 0; new_kmer.valid() &&
-			trusted[new_kmer.hashed_prefix()].query(new_kmer.get_query()) && anchor + 2 + i < seq.length() &&
+			trusted[new_kmer.hashed_prefix()].query(new_kmer.get_query()) && modified_idx + 1 + i < seq.length() &&
 			i < k; ++i){
+#ifndef NDEBUG
 				std::cerr << "i: " << i << " anchor + 2 + i: " << anchor + 2 + i << " len: " << seq.length() << std::endl;
-				new_kmer.push_back(seq[anchor+2+i]);
+#endif
+				new_kmer.push_back(seq[modified_idx+1+i]);
 				//if we get to the end of the altered kmers and they're all fixed, the anchor is fine.
-				if((anchor + 2 + i == seq.length()-1 || i == k - 1) && new_kmer.valid() &&
+				if((modified_idx + 1 + i == seq.length()-1 || i == k - 1) && new_kmer.valid() &&
 				trusted[new_kmer.hashed_prefix()].query(new_kmer.get_query())){
-					return anchor;
+#ifndef NDEBUG
+					std::cerr << "First Try!" << std::endl;
+#endif
+					return std::make_pair(anchor, multiple);
 				}
 			}
 		} // if we make it through this loop, we need to adjust the anchor.
 		//we will test fixes starting with halfway through the last kmer to the end.
-		//how much we're winding back the anchor; anchor+1-i-k must be > 0.
-		for(int i = k/2-1; i >= 0 && anchor+1 > i+k; --i){ 
+		//how much we're winding back the anchor; anchor-i-k must be > 0.
+		for(int i = k/2-1; i >= 0 && anchor > i+k; --i){ 
 			kmer.reset();
-			for(size_t j = anchor + 1 - i - k; j < anchor + 1 - i; ++j){ //start can be -1 from this
+			modified_idx = anchor-i;
+			// size_t modified_idx = anchor+1-i+k-2;
+			// for(size_t j = anchor + 1 - i - k; j < anchor + 1 - i; ++j){ //start can be -1 from this
+			for(size_t j = modified_idx - k + 1; j < modified_idx; ++j){
 				kmer.push_back(seq[j]);
 			}
 			for(const char& c: {'A','C','G','T'}){
-				if(seq[anchor+1-i] == c){continue;}
+				if(seq[modified_idx] == c){continue;}
 				bloom::Kmer new_kmer = kmer;
 				new_kmer.push_back(c);
-				std::cerr << "i: " << i << " anchor + 2 - i: " << anchor + 2 - i << " kmer:" << seq.substr(anchor+1-i-k,k-1) << c << std::endl;
-				for(size_t j = 0; new_kmer.valid() &&
-				trusted[new_kmer.hashed_prefix()].query(new_kmer.get_query()) && anchor+2-i+j < seq.length() &&
-				j <= k/2; ++j){
-					new_kmer.push_back(seq[anchor+2-i+j]);
-					if(j == k/2 && new_kmer.valid() &&
-					trusted[new_kmer.hashed_prefix()].query(new_kmer.get_query())){
-						return anchor-i; //the idx before the new base that needs fixing
-					} //only return here if j == k/2, NOT if you run out of sequence!!!
+#ifndef NDEBUG
+				std::cerr << "i: " << i << " modified_idx: " << modified_idx << " kmer:" << seq.substr(modified_idx-k+1,k-1) << c << std::endl;
+#endif
+				if(new_kmer.valid() && trusted[new_kmer.hashed_prefix()].query(new_kmer.get_query())){
+#ifndef NDEBUG
+					std::cerr << "Trusted!" << std::endl;
+#endif
+					multiple = true;
+					for(size_t j = 0; new_kmer.valid() &&
+					trusted[new_kmer.hashed_prefix()].query(new_kmer.get_query()) &&
+					modified_idx+1+j < seq.length() && j <= k/2; ++j){
+						new_kmer.push_back(seq[modified_idx+1+j]);
+						if(j == k/2 && new_kmer.valid() && trusted[new_kmer.hashed_prefix()].query(new_kmer.get_query())){
+							//we went the full length
+							return std::make_pair(modified_idx-1, multiple); //the idx before the new base that needs fixing
+							//only return here if j == k/2, NOT if you run out of sequence!!!
+						}
+					}
 				}
 			}
 		}
 		//couldn't find a better adjustment
-		return anchor;
-	} 
+		return std::make_pair(anchor, multiple);
+	}
 
-
-
-
-
-
-
-
+//end namespace
 }
-
-
-
-
-
-
-
-

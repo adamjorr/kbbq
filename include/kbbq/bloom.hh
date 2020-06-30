@@ -74,13 +74,20 @@ public:
 	inline size_t size(){return s;}
 	//whether the kmer has enough bases to be of length k
 	inline bool valid(){return (s >= k);}
+	inline operator std::string() const {
+		std::string ret{};
+		for(int i = 1; i <= k; ++i){
+			ret.push_back( seq_nt16_str[seq_nt16_table['0' + ((x[0] & (3ULL << (2*(k-i)))) >> (2*(k-i)))]] );
+		} 
+		return ret;
+	}
 };
 
 class Bloom
 {
 public:
 	// the constructor approximates yak_bf_init()
-	Bloom(): Bloom(0, 4){} //22 = approx 512MB
+	Bloom(): Bloom(20, 4){} //22 = approx 512MB
 	// across the 2^10 filters (2^PREFIXBITS), use 2^22 bits each. 2^22 * 2^10 = 2^32 bits = 512 MB
 	Bloom(int nshift): Bloom(nshift, 4){}
 	Bloom(int nshift, int nhashes);
@@ -134,9 +141,10 @@ char get_next_trusted_char(const bloom::Kmer& kmer, const bloomary_t& trusted);
 std::array<size_t,2> find_longest_trusted_seq(std::string seq, const bloomary_t& b, int k);
 
 //find the longest possible fix for the kmer at position (k-1) until the end
-//return the best character (multiple in case of a tie) and the index of the next untrusted base.
+//return the best character (multiple in case of a tie), the index of the next untrusted base,
+// and whether multiple corrections were considered for the fix.
 //if the length of the fix character vector is 0, no fix was found and correction should end.
-std::pair<std::vector<char>, size_t> find_longest_fix(std::string seq, const bloomary_t& t, int k);
+std::tuple<std::vector<char>, size_t, bool> find_longest_fix(std::string seq, const bloomary_t& t, int k);
 
 //calculate the false positive rate of the given bloom array.
 long double calculate_fpr(const bloomary_t& bf);
@@ -154,7 +162,9 @@ int numhashes(long double fpr);
 //given a sequence and an anchor, see if the anchor could be improved by moving it to the left.
 //this is used in the correction step.
 //ensure anchor >= k before this function is called.
-size_t adjust_right_anchor(size_t anchor, std::string seq, const bloomary_t& trusted, int k);
+//return {anchor, multiple}, the location of the new anchor and whether multiple corrections
+//were possible during anchor adjustment.
+std::pair<size_t, bool> adjust_right_anchor(size_t anchor, std::string seq, const bloomary_t& trusted, int k);
 
 }
 #endif
