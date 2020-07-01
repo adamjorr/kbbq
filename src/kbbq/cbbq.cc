@@ -10,6 +10,8 @@
 #include <getopt.h>
 #include <cassert>
 
+#define KBBQ_MAX_KMER 31
+
 //opens file filename and returns a unique_ptr to the result.
 std::unique_ptr<htsiter::HTSFile> open_file(std::string filename, bool is_bam = true, bool use_oq = false, bool set_oq = false){
 	std::unique_ptr<htsiter::HTSFile> f(nullptr);
@@ -34,28 +36,16 @@ int check_args(int argc, char* argv[]){
 }
 
 template<typename T>
-void print_vec(const std::vector<T>& v){
-	std::cerr << "[";
-	for(int i = 0; i < v.size()-1; ++i){
-		std::cerr << v[i] << ", ";
-	}
-	std::cerr << v.back() << "]" << std::endl;
+std::ostream& operator<< (std::ostream& stream, const std::vector<T>& v){
+	stream << "[";
+	std::copy(v.begin(), v.end(), std::ostream_iterator<T>(stream, ", "));
+	stream << "]";
+	return stream;
 }
 
-//nshift is the total number of bits, so it's divided by each block
-bloom::bloomary_t init_bloomary(uint64_t nbits, int nhashes){
-	bloom::bloomary_t ret;
-	int eachbits = nbits / ret.size() + 1; //+1 rounds up
-	std::cerr << "Requested a total of " << nbits << " bits." << std::endl;
-	std::cerr << "Size of each bloom filter: " << eachbits << " bits." << std::endl;
-	std::cerr << "Shift size of each bloom filter: " << ceil(log2(eachbits)) << "." << std::endl;
-	std::cerr << "Number of hash functions: " << nhashes << "." << std::endl;
-	for(size_t i = 0; i < ret.size(); ++i){
-		//n_shift is 2^X bits
-		bloom::Bloom n(ceil(log2(eachbits)), nhashes);
-		ret[i] = std::move(n);
-	}
-	return ret;
+template<typename T>
+void print_vec(const std::vector<T>& v){
+	std::cerr << v;
 }
 
 //long option, required arg?, flag, value
@@ -88,8 +78,8 @@ int main(int argc, char* argv[]){
 		switch(opt){
 			case 'k':
 				k = std::stoi(std::string(optarg));
-				if(k <= 0 || k > YAK_MAX_KMER){
-					std::cerr << "Error: k must be <= " << YAK_MAX_KMER << " and > 0." << std::endl;
+				if(k <= 0 || k > KBBQ_MAX_KMER){
+					std::cerr << "Error: k must be <= " << KBBQ_MAX_KMER << " and > 0." << std::endl;
 				}
 				break;
 			case 'u':
@@ -130,8 +120,8 @@ int main(int argc, char* argv[]){
 	}
 
 
-	long double sampler_desiredfpr = 0.0001;
-	long double trusted_desiredfpr = 0.000000001;
+	long double sampler_desiredfpr = 0.01;
+	long double trusted_desiredfpr = 0.0005;
 
 	//see if we have a bam
 	htsFormat fmt;
@@ -231,7 +221,7 @@ if(kmerlist == ""){
 			kin.push_back(c);
 		}
 		if(kin.valid()){
-			subsampled_hashes[kin.hashed_prefix()].push_back(kin.get_hashed());
+			subsampled_hashes[kin.prefix()].push_back(kin.get());
 		}
 	}
 }
@@ -243,8 +233,7 @@ if(kmerlist == ""){
 	}
 	std::cerr << "Sampled " << nsampled << " kmers." << std::endl;
 
-	bloom::bloomary_t subsampled = init_bloomary(bloom::numbits(genomelen*1.5, sampler_desiredfpr),
-		bloom::numhashes(sampler_desiredfpr));
+	bloom::Bloom subsampled(genomelen*1.5, sampler_desiredfpr);
 	recalibrateutils::add_kmers_to_bloom(subsampled_hashes, subsampled);
 
 #ifndef NDEBUG
@@ -257,19 +246,14 @@ if(kmerlist == ""){
 			kin.push_back(c);
 		}
 		if(kin.valid()){
-			assert(subsampled[kin.hashed_prefix()].query(kin.get_query()));
+			assert(subsampled.query(kin));
 		}
 	}
 #endif
 
 
 	//calculate thresholds
-	long double fpr = bloom::calculate_fpr(subsampled);
-	uint64_t hits = 0;
-	for(bloom::Bloom& b : subsampled){
-		hits += b.ninserts;
-	}
-	std::cerr << "Approximate additions to bloom filter: " << hits << std::endl;
+	long double fpr = subsampled.fprate();
 	std::cerr << "Approximate false positive rate: " << fpr << std::endl;
 	if(fpr > .15){
 		std::cerr << "Error: false positive rate is too high. " <<
@@ -316,14 +300,13 @@ if(trustedlist == ""){
 			kin.push_back(c);
 		}
 		if(kin.valid()){
-			trusted_hashes[kin.hashed_prefix()].push_back(kin.get_hashed());
+			trusted_hashes[kin.prefix()].push_back(kin.get());
 		}
 	}
 }
 #endif
 
-	bloom::bloomary_t trusted = init_bloomary(bloom::numbits(genomelen*1.5, trusted_desiredfpr),
-		bloom::numhashes(trusted_desiredfpr));
+	bloom::Bloom trusted(genomelen*1.5, trusted_desiredfpr);
 	recalibrateutils::add_kmers_to_bloom(trusted_hashes, trusted);
 
 #ifndef NDEBUG
@@ -340,7 +323,7 @@ if(trustedlist != ""){
 		for(char c: line){
 			kin.push_back(c);
 		}
-		assert(trusted[kin.hashed_prefix()].query(kin.get_query()));
+		assert(trusted.query(kin));
 	}
 }
 
@@ -394,30 +377,6 @@ if(trustedlist != ""){
 			}
 		}
 	}
-	// std::cerr << "cycledq:";
-	// i = 0;
-	// int j = 0;
-	// int l = 0;
-	// for(const std::vector<std::array<std::vector<int>,2>>& v : dqs.cycledq){
-	// 	std::cerr << i++ << ": ";
-	// 	for(const std::array<std::vector<int>,2>& a: v){
-	// 		std::cerr << j++ << ": ";
-	// 		for(const std::vector<int>& b: a){
-	// 			std::cerr << l++ << ": ";
-	// 			print_vec<int>(b);
-	// 		}
-	// 	}
-	// }
-	// i = 0;
-	// j = 0;
-	// std::cerr << "dinucdq:";
-	// for(const std::vector<std::vector<int>> v : dqs.dinucdq){
-	// 	std::cerr << i++ << ": ";
-	// 	for(const std::vector<int> w : v){
-	// 		std::cerr << j++ << ": ";
-	// 		print_vec<int>(w);
-	// 	}
-	// }
 
 	std::cerr << "Recalibrating file" << std::endl;
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));

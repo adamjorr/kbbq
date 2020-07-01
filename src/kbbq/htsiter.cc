@@ -66,7 +66,7 @@ int FastqFile::write(){
 
 // KmerSubsampler
 
-//return the next hashed kmer
+//return the next kmer
 //once the file is finished iterating and there are no remaining kmers,
 //return 0. That means you should check readseq.empty() if you get a 0!
 uint64_t KmerSubsampler::next_kmer(){
@@ -77,7 +77,13 @@ uint64_t KmerSubsampler::next_kmer(){
 		if(readseq.empty()){
 			return 0; //no more sequences
 		} else {
-			kmers = bloom::hash_seq(readseq, k); //get new vector of hashes
+			bloom::Kmer kmer(k);
+			kmers.clear();
+			for(size_t i = 0; i < readseq.length(); ++i){
+				if(kmer.push_back(readseq[i]) >= k && kmer.valid()){
+					kmers.push_back(kmer.get());
+				}
+			}
 			cur_kmer = 0; //reset current kmer
 			return this->next_kmer(); //try again
 		}

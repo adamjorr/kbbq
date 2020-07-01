@@ -144,7 +144,7 @@ namespace covariateutils{
 		int q;
 		for(size_t i = 1; i < read.seq.length(); i++){
 			q = read.qual[i];
-			if(!read.skips[i] && seq_nt4_table[read.seq[i]] < 4 && seq_nt4_table[read.seq[i-1]] < 4){
+			if(!read.skips[i] && seq_nt16_int[seq_nt16_table[read.seq[i]]] < 4 && seq_nt16_int[seq_nt16_table[read.seq[i-1]]] < 4){
 				if((*this)[rg].size() <= q){(*this)[rg].resize(q+1);}
 				if((*this)[rg][q].size() < 16){(*this)[rg][q].resize(16);}
 				(*this)[rg][q].increment(dinuc_to_int(read.seq[i-1], read.seq[i]),std::array<unsigned long long, 2>({read.errors[i], 1}));

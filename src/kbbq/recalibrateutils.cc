@@ -19,15 +19,15 @@ kmer_cache_t subsample_kmers(KmerSubsampler& s, uint64_t chunksize){
 }
 
 //this is a good target for multithreading ;)
-void add_kmers_to_bloom(const kmer_cache_t& kmers, bloom::bloomary_t& filters){
+void add_kmers_to_bloom(const kmer_cache_t& kmers, bloom::Bloom& filters){
 	for(int i = 0; i < (1<<PREFIXBITS); ++i){
 		for(uint64_t kmer : kmers[i]){
-			filters[i].insert(kmer >> PREFIXBITS); //remove the suffix and put into the filter
+			filters.insert(kmer);
 		}
 	}
 }
 
-kmer_cache_t find_trusted_kmers(HTSFile* file, const bloom::bloomary_t& sampled, std::vector<int> thresholds, int k, uint64_t chunksize){
+kmer_cache_t find_trusted_kmers(HTSFile* file, const bloom::Bloom& sampled, std::vector<int> thresholds, int k, uint64_t chunksize){
 	uint64_t counted = 0;
 	kmer_cache_t ret;
 	ret.fill(std::vector<uint64_t>());
@@ -48,14 +48,14 @@ kmer_cache_t find_trusted_kmers(HTSFile* file, const bloom::bloomary_t& sampled,
 			}
 			kmer.push_back(read.seq[i]);
 			if(kmer.size() >= k && n_trusted == k){
-				ret[kmer.hashed_prefix()].push_back(kmer.get_hashed());
+				ret[kmer.get() & ((1<<PREFIXBITS)-1)].push_back(kmer.get());
 			}
 		}
 	}
 	return ret;
 }
 
-covariateutils::CCovariateData get_covariatedata(HTSFile* file, const bloom::bloomary_t& trusted, int k){
+covariateutils::CCovariateData get_covariatedata(HTSFile* file, const bloom::Bloom& trusted, int k){
 	covariateutils::CCovariateData data;
 #ifndef NDEBUG
 	std::ifstream errorsin("../../lighter-debug/corrected.txt");

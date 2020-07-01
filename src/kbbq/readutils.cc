@@ -168,7 +168,7 @@ namespace readutils{
 		return unskipped;
 	}
 
-	void CReadData::infer_read_errors(const bloom::bloomary_t& b, const std::vector<int>& thresholds, int k){
+	void CReadData::infer_read_errors(const bloom::Bloom& b, const std::vector<int>& thresholds, int k){
 		std::array<std::vector<size_t>,2> overlapping = bloom::overlapping_kmers_in_bf(this->seq, b, k);
 		std::vector<size_t> in = overlapping[0];
 		std::vector<size_t> possible = overlapping[1];
@@ -193,26 +193,27 @@ namespace readutils{
 		}
 	}
 
-	size_t CReadData::correct_one(const bloom::bloomary_t& t, int k){
+	size_t CReadData::correct_one(const bloom::Bloom& t, int k){
 		int best_fix_len = 0;
 		char best_fix_base;
 		size_t best_fix_pos = std::string::npos;
 		for(size_t i = 0; i < this->seq.length(); ++i){
 			std::string original_seq(this->seq); //copy original
 			for(const char& c : {'A','C','G','T'}){
-				if(original_seq[i] == c){continue;}
+				if(this->seq[i] == c){continue;}
 				original_seq[i] = c;
 				size_t start = i > k - 1 ? i - k + 1 : 0;
 				//test a kmer to see whether its worth counting them all
 				//i'm not sure any performance gain is worth it, but this is how Lighter does it
-				size_t magic_start = i > k/2 + 1 ? std::min(i - k/2 + 1, original_seq.length()-k) : 0;
+				size_t magic_start = i > k/2 - 1 ? std::min(i - k/2 + 1, original_seq.length()-k) : 0;
 				bloom::Kmer magic_kmer(k);
 				for(size_t j = magic_start; j <= magic_start + k - 1; ++j){
 					magic_kmer.push_back(original_seq[j]);
 				}
 				//
-				if(t[magic_kmer.hashed_prefix()].query(magic_kmer.get_query())){
-					int n_in = bloom::nkmers_in_bf(original_seq.substr(start, std::string::npos),t,k);
+				if(t.query(magic_kmer)){
+					std::cerr << "Found a kmer: " << magic_kmer << std::endl;
+					int n_in = bloom::nkmers_in_bf(original_seq.substr(start, 2*k - 1),t,k);
 					if(n_in > best_fix_len){
 						best_fix_base = c;
 						best_fix_pos = i;
@@ -228,7 +229,7 @@ namespace readutils{
 	}
 
 	//this is a chonky boi
-	std::vector<bool> CReadData::get_errors(const bloom::bloomary_t& trusted, int k, int minqual, bool first_call){
+	std::vector<bool> CReadData::get_errors(const bloom::Bloom& trusted, int k, int minqual, bool first_call){
 		std::string original_seq(this->seq);
 		size_t bad_prefix = 0;
 		size_t bad_suffix = std::string::npos;
@@ -237,6 +238,9 @@ namespace readutils{
 		std::cerr << "Correcting seq: " << original_seq << std::endl;
 #endif
 		std::array<size_t,2> anchor = bloom::find_longest_trusted_seq(this->seq, trusted, k);
+#ifndef NDEBUG
+		std::cerr << "Initial anchors: [" << anchor[0] << ", " << anchor[1] << "]" << std::endl;
+#endif
 		if(anchor[0] == std::string::npos){ //no trusted kmers in this read.
 			multiple = true;
 			size_t corrected_idx = this->correct_one(trusted, k);
@@ -301,9 +305,10 @@ namespace readutils{
 #endif
 							break;
 						}
+					} else {
+						this->seq[i] = fix[0];
+						this->errors[i] = true;
 					}
-					this->seq[i] = fix[0];
-					this->errors[i] = true;
 					corrected = true;
 #ifndef NDEBUG
 					std::cerr << "Error detected at position " << i << ". Advancing " << fixlen - k + 1 << "." << std::endl;
@@ -330,7 +335,7 @@ namespace readutils{
 			// std::string sub = this->seq.substr(0, anchor[0] - 1 + k);
 			std::string revcomped(this->seq.length(), 'N');
 			std::transform(this->seq.rbegin(), this->seq.rend(), revcomped.begin(),
-				[](char c) -> char {return seq_nt16_str[seq_nt16_table[('0' + 3-seq_nt4_table[c])]];});
+				[](char c) -> char {return seq_nt16_str[seq_nt16_table[('0' + 3-seq_nt16_int[seq_nt16_table[c]])]];});
 			//
 			if(anchor[1] - anchor[0] - k + 1 >= k){ //number of trusted kmers >= k
 				size_t left_adjust;
@@ -407,7 +412,7 @@ namespace readutils{
 			size_t trusted_end = 0;
 			for(size_t i = 0; i < original_seq.length() && adjust == true; ++i){
 				kmer.push_back(original_seq[i]);
-				if(i >= k-1 && kmer.valid() && trusted[kmer.hashed_prefix()].query(kmer.get_query())){
+				if(i >= k-1 && kmer.valid() && trusted.query(kmer)){
 					//this will only happen when the end was from a previous island of trusted sequence
 					//so we don't need to re-check those positions.
 					trusted_start = i-k+1 < trusted_end+1 ? trusted_end+1 : std::min(i-k+1, trusted_start);
@@ -446,14 +451,14 @@ namespace readutils{
 			std::vector<int> overcorrected_idx; //push_back overcorrected indices in order
 			//then from overcorrected.begin() - k to overcorrected.end() + k should all be reset.
 			for(int i = 0; i < this->seq.length(); ++i){
-				if(this->errors[i] && seq_nt4_table[this->seq[i]] < 4){ //increment correction count
+				if(this->errors[i] && seq_nt16_int[seq_nt16_table[this->seq[i]]] < 4){ //increment correction count
 					if(this->qual[i] <= minqual){
 						occount += 0.5;
 					} else {
 						++occount;
 					}
 				}
-				if(i >= ocwindow && this->errors[i-ocwindow] && seq_nt4_table[this->seq[i-ocwindow]] < 4){ //decrement count for not in window
+				if(i >= ocwindow && this->errors[i-ocwindow] && seq_nt16_int[seq_nt16_table[this->seq[i-ocwindow]]] < 4){ //decrement count for not in window
 					if(this->qual[i-ocwindow] <= minqual){
 						occount -= 0.5;
 					} else {
@@ -498,28 +503,28 @@ namespace readutils{
 					}
 				}
 			}
-		} else { //we couldn't find a correction so cut up the read and try again
-			if(first_call && bad_prefix > 0 && (bad_prefix > this->seq.length() / 2 || bad_prefix > 2*k)){
-#ifndef NDEBUG			
-				std::cerr << "bad_prefix: " << bad_prefix << std::endl;
-#endif
-				CReadData subread = this->substr(0, bad_prefix);
-				std::vector<bool> suberrors = subread.get_errors(trusted, k, minqual, false);
-				std::copy(suberrors.begin(), suberrors.end(), this->errors.begin());
-			}
-			if(first_call && bad_suffix < std::string::npos && bad_suffix < this->seq.length() &&
-			(this->seq.length()-bad_suffix > this->seq.length()/2 || this->seq.length()-bad_suffix > 2*k)){
-#ifndef NDEBUG
-				std::cerr << "bad_suffix: " << bad_suffix << std::endl;
-#endif
-				CReadData subread = this->substr(bad_suffix, std::string::npos);
-				std::vector<bool> suberrors = subread.get_errors(trusted, k, minqual, false);
-				std::copy(suberrors.begin(), suberrors.end(), this->errors.begin()+bad_suffix);
-			}
-			if(std::find(this->errors.begin(), this->errors.end(), true) != this->errors.end()){
-				corrected = true;
-			}
 		}
+		if(first_call && bad_prefix > 0 && (bad_prefix > this->seq.length() / 2 || bad_prefix > 2*k)){
+#ifndef NDEBUG			
+			std::cerr << "bad_prefix: " << bad_prefix << std::endl;
+#endif
+			CReadData subread = this->substr(0, bad_prefix);
+			std::vector<bool> suberrors = subread.get_errors(trusted, k, minqual, false);
+			std::copy(suberrors.begin(), suberrors.end(), this->errors.begin());
+		}
+		if(first_call && bad_suffix < std::string::npos && bad_suffix < this->seq.length() &&
+		(this->seq.length()-bad_suffix > this->seq.length()/2 || this->seq.length()-bad_suffix > 2*k)){
+#ifndef NDEBUG
+			std::cerr << "bad_suffix: " << bad_suffix << std::endl;
+#endif
+			CReadData subread = this->substr(bad_suffix, std::string::npos);
+			std::vector<bool> suberrors = subread.get_errors(trusted, k, minqual, false);
+			std::copy(suberrors.begin(), suberrors.end(), this->errors.begin()+bad_suffix);
+		}
+		if(std::find(this->errors.begin(), this->errors.end(), true) != this->errors.end()){
+			corrected = true;
+		}
+
 		this->seq = original_seq;
 		return this->errors;
 	}
@@ -533,8 +538,8 @@ namespace readutils{
 				recalibrated[i] = dqs.meanq[rg] + dqs.rgdq[rg] + dqs.qscoredq[rg][q] +
 					dqs.cycledq[rg][q][this->second][i];
 				if(i > 0){
-					int first = seq_nt4_table[this->seq[i-1]];
-					int second = seq_nt4_table[this->seq[i]];
+					int first = seq_nt16_int[seq_nt16_table[this->seq[i-1]]];
+					int second = seq_nt16_int[seq_nt16_table[this->seq[i]]];
 					if(first < 4 && second < 4){
 						int8_t dinuc = covariateutils::dinuc_to_int(first, second);
 						recalibrated[i] += dqs.dinucdq[rg][q][dinuc];
