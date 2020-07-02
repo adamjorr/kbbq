@@ -212,7 +212,9 @@ namespace readutils{
 				}
 				//
 				if(t.query(magic_kmer)){
+#ifndef NDEBUG					
 					std::cerr << "Found a kmer: " << magic_kmer << std::endl;
+#endif
 					int n_in = bloom::nkmers_in_bf(original_seq.substr(start, 2*k - 1),t,k);
 					if(n_in > best_fix_len){
 						best_fix_base = c;
