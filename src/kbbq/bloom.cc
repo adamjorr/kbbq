@@ -124,7 +124,9 @@ namespace bloom
 	}
 
 	std::tuple<std::vector<char>,size_t,bool> find_longest_fix(std::string seq, const Bloom& trusted, int k){
+#ifndef NDEBUG
 		std::cerr << seq << std::endl;
+#endif
 		Kmer kmer(k);
 		std::vector<char> best_c{};
 		size_t best_i = 0;
