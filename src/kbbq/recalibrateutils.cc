@@ -64,7 +64,7 @@ covariateutils::CCovariateData get_covariatedata(HTSFile* file, const bloom::Blo
 #endif
 	while(file->next() >= 0){
 		readutils::CReadData read = file->get();
-		read.get_errors(trusted, k, 2);
+		read.get_errors(trusted, k, 6);
 #ifndef NDEBUG
 		//check that errors are same
 		std::getline(errorsin, line);

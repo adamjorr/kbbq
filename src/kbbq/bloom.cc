@@ -124,7 +124,7 @@ namespace bloom
 	}
 
 	std::tuple<std::vector<char>,size_t,bool> find_longest_fix(std::string seq, const Bloom& trusted, int k){
-		// std::cerr << seq << std::endl;
+		std::cerr << seq << std::endl;
 		Kmer kmer(k);
 		std::vector<char> best_c{};
 		size_t best_i = 0;
@@ -206,7 +206,7 @@ namespace bloom
 			kmer.push_back(seq[i]);
 		}
 		for(const char& c : {'A','C','G','T'}){
-			if(seq[anchor+1] == c){continue;}
+			if(seq[modified_idx] == c){continue;}
 			bloom::Kmer new_kmer = kmer;
 			new_kmer.push_back(c);
 			//if this fix works, we don't need to adjust the anchor if it fixes all remaining kmers.

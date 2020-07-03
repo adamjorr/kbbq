@@ -260,7 +260,8 @@ namespace readutils{
 		bool corrected = false; //whether there were any corrections
 		//right side
 		if(anchor[1] != std::string::npos){
-			if(anchor[1] - anchor[0] - k + 1 >= k){ //number of trusted kmers >= k
+			//number of trusted kmers >= k
+			if(anchor[1] + 1 - anchor[0] - k + 1 >= k){ //len of trusted seq -k + 1
 				bool current_multiple;
 				std::tie(anchor[1], current_multiple) = bloom::adjust_right_anchor(anchor[1], this->seq, trusted, k);
 #ifndef NDEBUG
@@ -286,13 +287,14 @@ namespace readutils{
 						//maxto = largest index the fix goes to; next_untrusted_idx
 						//if( maxTo <= to || to - i + 1 < kmerLength ) ...
 						//if(next_untrusted_idx <= )
-						size_t largest_possible_idx = std::max(start + (size_t)2*k - 1, this->seq.length()-1);
+						multiple = true;
+						size_t largest_possible_idx = std::min(start + (size_t)2*k - 1, this->seq.length()-1);
 #ifndef NDEBUG
 						std::cerr << "next_untrusted_idx: " << next_untrusted_idx << std::endl;
 						std::cerr << "largest_possible_idx (to): " << largest_possible_idx << std::endl;
 						std::cerr << "largest_possible_idx-i+1: " << largest_possible_idx-i+1 << std::endl;
 #endif
-						if(next_untrusted_idx <= largest_possible_idx || largest_possible_idx - i + 1 < k){
+						if(next_untrusted_idx < largest_possible_idx || largest_possible_idx - i + 1 < k){
 							// size_t trimstart = next_untrusted_idx;
 							bad_suffix = i; //readlength - trimstart
 #ifndef NDEBUG
@@ -339,7 +341,7 @@ namespace readutils{
 			std::transform(this->seq.rbegin(), this->seq.rend(), revcomped.begin(),
 				[](char c) -> char {return seq_nt16_str[seq_nt16_table[('0' + 3-seq_nt16_int[seq_nt16_table[c]])]];});
 			//
-			if(anchor[1] - anchor[0] - k + 1 >= k){ //number of trusted kmers >= k
+			if(anchor[1] + 1 - anchor[0] - k + 1 >= k){ //number of trusted kmers >= k
 				size_t left_adjust;
 				bool current_multiple;
 				std::tie(left_adjust, current_multiple) = bloom::adjust_right_anchor(revcomped.length()-anchor[0]-1, revcomped, trusted, k);
@@ -370,15 +372,22 @@ namespace readutils{
 				size_t next_untrusted_idx = start + fixlen; // next untrusted idx in j space
 				if( next_untrusted_idx > j){
 					if(fix.size() > 1){
-						// multiple = true; // we don't have to do this here because we do it in function
-						if(next_untrusted_idx - 1 <= std::max(start + (size_t)2*k - 1, revcomped.length())){
+						multiple = true; // we don't have to do this here because we do it in function
+						//this value needs to be fixed i think
+						//to = ( i - kmerLength + 1 < 0 ) ? 0 : ( i - kmerLength + 1 ) ; 
+						//( minTo >= to || i - to + 1 < kmerLength )
+						//Line num: 21537
+						// if(next_untrusted_idx - 1 <= std::max(start + (size_t)2*k - 1, revcomped.length())){
+						size_t largest_possible_idx = std::min(start + (size_t)2*k - 1, revcomped.length()-1);
+						if(next_untrusted_idx < largest_possible_idx || largest_possible_idx - i + 1 < k){
 							//if there's a tie and we haven't gone the max number of kmers, end correction
 							bad_prefix = i;
 							break;
 						}
+					} else {
+						revcomped[j] = fix[0];
+						this->errors[i] = true;
 					}
-					revcomped[j] = fix[0];
-					this->errors[i] = true;
 					corrected = true;
 #ifndef NDEBUG
 					std::cerr << "next_untrusted_idx: " << next_untrusted_idx << " j: " << j << std::endl;
@@ -390,7 +399,7 @@ namespace readutils{
 #ifndef NDEBUG
 					std::cerr << "Couldn't fix position " << i << "Cutting read and trying again." << std::endl;//". Skipping ahead " << k - 1 << "." << std::endl;
 #endif			
-					bad_prefix = i;
+					bad_prefix = i + 1; //this may possibly need to be i
 					break;
 					// i -= k-1;
 					// if(i + k <= (seq.length()/2) || i + k <= 2*k ){
@@ -411,25 +420,35 @@ namespace readutils{
 			//check that no trusted kmers were "fixed"
 			bloom::Kmer kmer(k);
 			size_t trusted_start = std::string::npos;
-			size_t trusted_end = 0;
+			size_t trusted_end = std::string::npos;
 			for(size_t i = 0; i < original_seq.length() && adjust == true; ++i){
 				kmer.push_back(original_seq[i]);
-				if(i >= k-1 && kmer.valid() && trusted.query(kmer)){
-					//this will only happen when the end was from a previous island of trusted sequence
-					//so we don't need to re-check those positions.
-					trusted_start = i-k+1 < trusted_end+1 ? trusted_end+1 : std::min(i-k+1, trusted_start);
+				if(kmer.valid() && trusted.query(kmer)){
+					trusted_start = std::min(trusted_start,i-k+1);
 					trusted_end = i;
-				}
-				if(i > trusted_end){
-					//we clear everything from beginning to end
-					for(size_t j = trusted_start; j <= trusted_end; ++j){
-						if(this->errors[j]){
-							adjust = false;
-							break;
+					// std::cerr << "Trusted: " << trusted_start << " " << trusted_end << std::endl;
+				} else {
+					if(i > trusted_end){
+						//we clear everything from beginning to end
+						for(size_t j = trusted_start; j <= trusted_end; ++j){
+							if(this->errors[j]){
+								adjust = false;
+								break;
+							}
 						}
+						trusted_start = std::string::npos;
+						trusted_end = std::string::npos;
 					}
-					trusted_start = std::string::npos;
-					trusted_end = 0;
+				}
+			}
+			//if we get to the end but have a trusted block:
+			if(trusted_end != std::string::npos){
+				// std::cerr << "Problem: " << trusted_start << " " << trusted_end << std::endl;
+				for(size_t j = trusted_start; j <= trusted_end; ++j){
+					if(this->errors[j]){
+						adjust = false;
+						break;
+					}
 				}
 			}
 #ifndef NDEBUG
@@ -453,14 +472,14 @@ namespace readutils{
 			std::vector<int> overcorrected_idx; //push_back overcorrected indices in order
 			//then from overcorrected.begin() - k to overcorrected.end() + k should all be reset.
 			for(int i = 0; i < this->seq.length(); ++i){
-				if(this->errors[i] && seq_nt16_int[seq_nt16_table[this->seq[i]]] < 4){ //increment correction count
+				if(this->errors[i] && seq_nt16_int[seq_nt16_table[original_seq[i]]] < 4){ //increment correction count
 					if(this->qual[i] <= minqual){
 						occount += 0.5;
 					} else {
 						++occount;
 					}
 				}
-				if(i >= ocwindow && this->errors[i-ocwindow] && seq_nt16_int[seq_nt16_table[this->seq[i-ocwindow]]] < 4){ //decrement count for not in window
+				if(i >= ocwindow && this->errors[i-ocwindow] && seq_nt16_int[seq_nt16_table[original_seq[i-ocwindow]]] < 4){ //decrement count for not in window
 					if(this->qual[i-ocwindow] <= minqual){
 						occount -= 0.5;
 					} else {
@@ -472,7 +491,9 @@ namespace readutils{
 					base_threshold + 1 : base_threshold;
 				//determine if overcorrected
 #ifndef NDEBUG
-				std::cerr << "Occount: " << occount << " Threshold: " << threshold << std::endl;
+				std::cerr << "Occount: " << occount << " Threshold: " << threshold;
+				std::cerr << " Seq: " << original_seq[i] << " (" << seq_nt16_int[seq_nt16_table[original_seq[i]]];
+				std::cerr << " )" << " Q: " << this->qual[i] <<std::endl;
 #endif
 				if(occount > threshold && this->errors[i]){
 					overcorrected_idx.push_back(i);
@@ -484,23 +505,28 @@ namespace readutils{
 			std::copy(overcorrected_idx.begin(), overcorrected_idx.end(), std::ostream_iterator<int>(std::cerr, ", "));
 			std::cerr << std::endl;
 #endif
-
-			if(overcorrected_idx.size() > 0){
-				int start = overcorrected_idx[0]-k+1; //the beginningmost position to check
-				start = start >= 0? start : 0;
-				int end = overcorrected_idx.back()+k-1; //the endmost position to check
-				end = end < this->seq.length() ? end : this->seq.length();
-				//we start iteration but we need to unfix anything within k of an overcorrected position
-				//OR within k of one of those fixed positions.
-				for(int i = start; i < end; ++i){
-					if(this->errors[i]){
-						this->errors[i] = false;
-						if(i-k+1 < start){ //go back a bit if we need to
-							i = i-k+1 >= 0 ? i-k : 0; //+1 will come from the loop
-							start = i;
-						}
-						if(i+k-1 > end){ //change the end if we need to
-							end = i+k-1 < this->seq.length() ? i+k-1 : this->seq.length();
+			//Line num: 23026
+			for(int oc_idx : overcorrected_idx){
+				if(this->errors[oc_idx]){ //overcorrected idx hasn't been addressed yet
+					int start = oc_idx-k+1; //the beginningmost position to check
+					start = start >= 0? start : 0;
+					int end = oc_idx+k; //the endmost position to check
+					end = end < this->seq.length() ? end : this->seq.length();
+					//we start iteration but we need to unfix anything within k of an overcorrected position
+					//OR within k of one of those fixed positions.
+					for(int i = start; i < end; ++i){
+						if(this->errors[i]){
+							this->errors[i] = false;
+							//changint the end must come before the start change because the start
+							//change changes i!
+							if(i+k > end){ //change the end if we need to
+								end = i+k < this->seq.length() ? i+k : this->seq.length();
+							}
+							//i will be 1 greater than start, so rather than i-k+1 we have i-k.
+							if(i-k < start){ //go back a bit if we need to; +1 comes from the loop
+								i = i-k+1 >= 0 ? i-k : -1; //+1 will come from the loop
+								start = i;
+							}
 						}
 					}
 				}
@@ -510,7 +536,7 @@ namespace readutils{
 #ifndef NDEBUG			
 			std::cerr << "bad_prefix: " << bad_prefix << std::endl;
 #endif
-			CReadData subread = this->substr(0, bad_prefix);
+			CReadData subread = this->substr(0, bad_prefix+1); //2nd argument is length
 			std::vector<bool> suberrors = subread.get_errors(trusted, k, minqual, false);
 			std::copy(suberrors.begin(), suberrors.end(), this->errors.begin());
 		}
