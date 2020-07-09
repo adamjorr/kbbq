@@ -10,7 +10,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # library stuff
 add_subdirectory(src/minionrng)
 #add_library(hts SHARED IMPORTED)
-add_subdirectory(src/yak)
 add_subdirectory(src/kbbq)
 
 # add the executable

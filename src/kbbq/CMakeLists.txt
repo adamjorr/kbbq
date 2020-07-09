@@ -13,5 +13,4 @@ target_include_directories(kbbq PUBLIC
 target_link_libraries(kbbq PUBLIC
     hts
     minionrng
-    yak
 )
