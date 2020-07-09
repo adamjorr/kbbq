@@ -29,22 +29,21 @@ namespace bloom
 		std::vector<size_t> kmers_possible(seq.length(), 0);
 		size_t incount = 0;
 		size_t outcount = 0;
-		for(size_t i = 0; i < k; ++i){
+		for(size_t i = 0; i < seq.length(); ++i){
 			kmer.push_back(seq[i]);
-		}
-		kmer_present[0] = kmer.valid() ? b.query(kmer) : false;
-		for(size_t i = k; i < seq.length(); ++i){
-			kmer.push_back(seq[i]);
-			kmer_present[i-k+1] = kmer.valid() ? b.query(kmer) : false;
+			if(i >= k-1){
+				kmer_present[i-k+1] = kmer.valid() ? b.query(kmer) : false;
+			}
+#ifndef NDEBUG
+			// if(i >= k-1){std::cerr << kmer << " " << kmer_present[i-k+1] << std::endl;}
+			if(i >= k-1 && seq == "AAGTGGGTTTCTCAGTATTTTATTCTTTTGATATTATCATACATGATACTATCGTCTTGATTTCTTCTTCAGAGAGTTTATTGTTGTTGTAGAAATACAATTGATTTTTGTGTATTGATTTTGTATCCTGCAGCTTTGCTGAATTTTATTT"){
+				std::string kmerstr(seq, i-k+1, k);
+				std::cerr << kmerstr << " " << kmer_present[i-k+1] << std::endl;
+			}
+#endif
 		}
 		for(size_t i = 0; i < seq.length(); ++i){
 			if(i < seq.length() - k + 1){ //add kmers now in our window
-				//debugging
-				/* if(seq == "AAGTGGGTTTCTCAGTATTTTATTCTTTTGATATTATCATACATGATACTATCGTCTTGATTTCTTCTTCAGAGAGTTTATTGTTGTTGTAGAAATACAATTGATTTTTGTGTATTGATTTTGTATCCTGCAGCTTTGCTGAATTTTATTT"){
-					std::string kmerstr(seq, i, k);
-					std::cerr << kmerstr << " " << kmer_present[i] << std::endl;
-				} */
-
 				if(kmer_present[i]){
 					++incount;
 				} else {
