@@ -264,16 +264,18 @@ if(kmerlist == ""){
 	long double p = bloom::calculate_phit(subsampled, alpha);
 	std::vector<int> thresholds = covariateutils::calculate_thresholds(k, p);
 #ifndef NDEBUG
-	thresholds = {0, 1, 2, 3, 3, 4, 5, 5, 6, 6, 6,
-		7, 7, 8, 8, 9, 9, 9, 10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 14, 15};
+	std::vector<int> lighter_thresholds = {0, 1, 2, 3, 3, 4, 5, 5, 6, 6, 6,
+		7, 7, 8, 8, 9, 9, 9, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 14, 14, 14, 15};
+	std::cerr << "Thresholds: [ " ;
+	std::copy(thresholds.begin(), thresholds.end(), std::ostream_iterator<int>(std::cerr, " "));
+	std::cerr << "]" << std::endl;
+	std::cerr << "Lighter Th: [ " ;
+	std::copy(lighter_thresholds.begin(), lighter_thresholds.end(), std::ostream_iterator<int>(std::cerr, " "));
+	std::cerr << "]" << std::endl;
+	assert(lighter_thresholds == thresholds);
 #endif
 
-
 	std::vector<long double> cdf = covariateutils::log_binom_cdf(k,p);
-
-	std::cerr << "Thresholds: [ " ;
-	for(auto t : thresholds){std::cerr << t << " ";}
-	std::cerr << "]" << std::endl;	
 
 	std::cerr << "log CDF: [ " ;
 	for(auto c : cdf){std::cerr << c << " ";}
@@ -282,30 +284,9 @@ if(kmerlist == ""){
 	//get trusted kmers bf using subsampled bf
 	std::cerr << "Finding trusted kmers" << std::endl;
 
-	recalibrateutils::kmer_cache_t trusted_hashes;
-#ifndef NDEBUG
-//if a kmer list is provided, take kmers from it instead of finding them from sampled kmers
-if(trustedlist == ""){
-#endif
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
-	trusted_hashes = recalibrateutils::find_trusted_kmers(file.get(), subsampled, thresholds, k);
-#ifndef NDEBUG
-} else {
-	trusted_hashes.fill(std::vector<uint64_t>());
-	std::ifstream kmersin(trustedlist);
-	bloom::Kmer kin(k);
-	for(std::string line; std::getline(kmersin, line); ){
-		kin.reset();
-		for(char c: line){
-			kin.push_back(c);
-		}
-		if(kin.valid()){
-			trusted_hashes[kin.prefix()].push_back(kin.get());
-		}
-	}
-}
-#endif
-
+	recalibrateutils::kmer_cache_t trusted_hashes = 
+		recalibrateutils::find_trusted_kmers(file.get(), subsampled, thresholds, k);
 	bloom::Bloom trusted(genomelen*1.5, trusted_desiredfpr);
 	recalibrateutils::add_kmers_to_bloom(trusted_hashes, trusted);
 
@@ -323,10 +304,14 @@ if(trustedlist != ""){
 		for(char c: line){
 			kin.push_back(c);
 		}
+		if(!trusted.query(kin)){
+			std::cerr << "Trusted kmer not found!" << std::endl;
+			std::cerr << "Line: " << line << std::endl;
+			std::cerr << "Kmer: " << kin << std::endl;
+		}
 		assert(trusted.query(kin));
 	}
 }
-
 #endif
 
 	//use trusted kmers to find errors
