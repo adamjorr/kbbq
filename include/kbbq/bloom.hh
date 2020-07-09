@@ -68,11 +68,10 @@ public:
 	~Bloom();
 	bloom_parameters params;
 	bloom_filter bloom;
-	//this is similar to yak_bf_insert()
-	inline void insert(const Kmer& kmer){bloom.insert(kmer.get());}
+	inline void insert(const Kmer& kmer){if(kmer.valid()){bloom.insert(kmer.get());}}
 	template <typename T>
 	inline void insert(const T& t){bloom.insert(t);}
-	inline bool query(const Kmer& kmer) const {return bloom.contains(kmer.get());}
+	inline bool query(const Kmer& kmer) const {return (kmer.valid() && bloom.contains(kmer.get()));}
 	inline double fprate() const {return bloom.effective_fpp();}
 };
 
