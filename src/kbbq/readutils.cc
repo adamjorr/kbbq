@@ -173,23 +173,20 @@ namespace readutils{
 		std::vector<size_t> in = overlapping[0];
 		std::vector<size_t> possible = overlapping[1];
 		for(size_t i = 0; i < errors.size(); ++i){
-			//debugging
-			/*
-			if(this->seq.substr(i,k) == "TACTATCGTCTTGATTTCTTCTTCAGAGAGT"){
-				std::cerr << this->seq << std::endl;
-				std::cerr << "in: "; 
-				for(size_t j = i; j < i+k; ++j){std::cerr << in[j] << ", ";}
-				std::cerr << std::endl;
-				std::cerr << "possible: ";
-				for(size_t j = i; j < i+k; ++j){std::cerr << possible[j] << ", ";}
-				std::cerr << std::endl;
-				std::cerr << "errors: ";
-				for(size_t j = i; j < i+k; ++j){std::cerr << (in[j] <= thresholds[possible[j]]) << ", ";}
-				std::cerr << std::endl;
-			} */
-			
-			if(possible[i] > k){std::cerr << "seq:" << this->seq << " " << possible[i] << "WARNING: Invalid i: " << i << std::endl;}
 			this->errors[i] = (in[i] <= thresholds[possible[i]] || this->qual[i] <= INFER_ERROR_BAD_QUAL);
+#ifndef NDEBUG
+			if(possible[i] > k){std::cerr << "seq:" << this->seq << " " << possible[i] << "WARNING: Invalid i: " << i << std::endl;}
+			if(i>=k-1 && std::string(this->seq, i-k+1, k) == "TACTATCGTCTTGATTTCTTCTTCAGAGAGT"){
+				std::cerr << "seq: " << this->seq << "\n";
+				std::cerr << "in: ";
+				std::copy(in.begin()+i-k+1, in.begin()+i+1, std::ostream_iterator<size_t>(std::cerr, ", "));
+				std::cerr << "\npossible: ";
+				std::copy(possible.begin()+i-k+1, possible.begin()+i+1, std::ostream_iterator<size_t>(std::cerr, ", "));
+				std::cerr << "\nerrors: ";
+				std::copy(this->errors.begin()+i-k+1, this->errors.begin()+i+1, std::ostream_iterator<bool>(std::cerr, ", "));
+				std::cerr << std::endl;
+			}			
+#endif
 		}
 	}
 
