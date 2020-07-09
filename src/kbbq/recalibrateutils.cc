@@ -20,8 +20,8 @@ kmer_cache_t subsample_kmers(KmerSubsampler& s, uint64_t chunksize){
 
 //this is a good target for multithreading ;)
 void add_kmers_to_bloom(const kmer_cache_t& kmers, bloom::Bloom& filters){
-	for(int i = 0; i < (1<<PREFIXBITS); ++i){
-		for(uint64_t kmer : kmers[i]){
+	for(const std::vector<uint64_t>& v : kmers){
+		for(uint64_t kmer : v){
 			filters.insert(kmer);
 		}
 	}
@@ -41,14 +41,15 @@ kmer_cache_t find_trusted_kmers(HTSFile* file, const bloom::Bloom& sampled, std:
 		kmer.reset();
 		for(int i = 0; i < read.seq.length(); ++i){
 			if(!read.errors[i]){
-				n_trusted++;
+				++n_trusted;
 			}
 			if(i >= k && !read.errors[i-k]){
-				n_trusted--;
+				--n_trusted;
 			}
 			kmer.push_back(read.seq[i]);
 			if(kmer.size() >= k && n_trusted == k){
-				ret[kmer.get() & ((1<<PREFIXBITS)-1)].push_back(kmer.get());
+				ret[kmer.prefix()].push_back(kmer.get());
+				//trusted kmer here
 			}
 		}
 	}
