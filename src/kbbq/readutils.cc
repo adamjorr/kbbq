@@ -60,13 +60,15 @@ namespace readutils{
 	}
 	// if second is >1, that means infer.
 
-	CReadData::CReadData(kseq::kseq_t* fastqrecord, std::string rg, int second, std::string namedelimiter){
-		this->seq = std::string(fastqrecord->seq.s);
+	CReadData::CReadData(kseq::kseq_t* fastqrecord, std::string rg, int second, std::string namedelimiter):
+	seq(fastqrecord->seq.s), skips(seq.length(), false), errors(seq.length(), false)
+	{
+		// this->seq = std::string(fastqrecord->seq.s);
 		// this->qual.assign(fastqrecord->qual.s, fastqrecord->qual.l);
 		std::string quals(fastqrecord->qual.s);
 		std::transform(quals.begin(), quals.end(), std::back_inserter(this->qual),
 			[](char c) -> int {return c - 33;});
-		this->skips.resize(this->seq.length(), false);
+		// this->skips.resize(this->seq.length(), false);
 
 		std::string fullname(fastqrecord->name.s);
 		size_t current_pos = fullname.find(namedelimiter);
@@ -92,7 +94,7 @@ namespace readutils{
 		}
 		this->name = first_name;
 		this->second = second;
-		this->errors.resize(this->seq.length(), false);
+		// this->errors.resize(this->seq.length(), false);
 
 		if(rg_to_pu.count(this->rg) == 0){
 			rg_to_int[this->rg] = rg_to_int.size();
@@ -160,12 +162,11 @@ namespace readutils{
 	}
 
 	std::vector<bool> CReadData::not_skipped_errors() const{
-		std::vector<bool> unskipped = this->skips;
-		unskipped.flip();
-		for(size_t i = 0; i < unskipped.size(); i++){
-			unskipped[i] = (unskipped[i] && this->errors[i]);
-		}
-		return unskipped;
+		std::vector<bool> unskipped_errs;
+		std::transform(this->skips.cbegin(), this->skips.cend(), this->errors.cbegin(),
+			std::back_inserter(unskipped_errs),
+			[](const bool &s, const bool &e) -> bool {return (!s) && e;});
+		return unskipped_errs;
 	}
 
 	void CReadData::infer_read_errors(const bloom::Bloom& b, const std::vector<int>& thresholds, int k){
@@ -578,14 +579,19 @@ namespace readutils{
 	CReadData CReadData::substr(size_t pos, size_t count) const{
 		CReadData ret = (*this);
 		ret.seq = ret.seq.substr(pos, count);
-		ret.qual.resize(ret.seq.length());
-		ret.skips.resize(ret.seq.length());
-		ret.errors.resize(ret.seq.length());
-		for(size_t i = 0; i < count && i < this->seq.length(); ++i){
-			ret.qual[i] = this->qual[pos + i];
-			ret.skips[i] = this->skips[pos + i];
-			ret.errors[i] = this->errors[pos + i];
-		}
+		size_t len = ret.seq.size();
+		ret.qual.resize(len);
+		ret.skips.resize(len);
+		ret.errors.resize(len);
+		std::copy(this->qual.cbegin()+pos, this->qual.cbegin()+pos+len, ret.qual.begin());
+		std::copy(this->skips.cbegin()+pos, this->skips.cbegin()+pos+len, ret.skips.begin());
+		std::copy(this->errors.cbegin()+pos, this->errors.cbegin()+pos+len, ret.errors.begin());
+
+		// for(size_t i = 0; i < count && i < this->seq.length(); ++i){
+			// ret.qual[i] = this->qual[pos + i];
+			// ret.skips[i] = this->skips[pos + i];
+			// ret.errors[i] = this->errors[pos + i];
+		// }
 		return ret;
 	}
 
