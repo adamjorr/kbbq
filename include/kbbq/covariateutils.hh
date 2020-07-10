@@ -104,6 +104,7 @@ public:
 	CCovariate(): std::vector<covariate_t>(){}
 	CCovariate(size_t len): std::vector<covariate_t>(len) {}
 	void increment(size_t idx, covariate_t value);
+	void increment(size_t idx, unsigned long long err, unsigned long long total);
 };
 
 class CRGCovariate: public CCovariate

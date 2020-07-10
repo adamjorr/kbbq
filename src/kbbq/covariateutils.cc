@@ -19,22 +19,28 @@ namespace covariateutils{
 	}
 
 	void CCovariate::increment(size_t idx, covariate_t value){
-		(*this)[idx][0] += value[0];
-		(*this)[idx][1] += value[1];
+		this->increment(idx,value[0],value[1]);
+	}
+
+	void CCovariate::increment(size_t idx, unsigned long long err, unsigned long long total){
+		this->at(idx)[0] += err;
+		this->at(idx)[1] += total;
 	}
 
 	void CRGCovariate::consume_read(const readutils::CReadData& read){
 		int rg = read.get_rg_int();
 		if(this->size() <= rg){this->resize(rg+1);}
-		// std::vector<bool> nse = read.not_skipped_errors();
-		for(size_t i = 0; i < read.skips.size(); ++i){
-			if(!read.skips[i]){
-				this->increment(rg, std::array<unsigned long long,2>({read.errors[i], 1}));
-			}
-		}
+		std::vector<bool> nse = read.not_skipped_errors();
+		this->increment(rg,
+			std::accumulate(nse.begin(), nse.end(), 0),
+			read.skips.size() - std::accumulate(read.skips.begin(), read.skips.end(), 0));
+		// for(size_t i = 0; i < read.skips.size(); ++i){
+		// 	if(!read.skips[i]){
+		// 		this->increment(rg, !!read.errors[i], 1);
+		// 	}
+		// }
 	}
 
-	//TODO: fix priors
 	rgdq_t CRGCovariate::delta_q(meanq_t prior){
 		rgdq_t dq(this->size());
 		for(int i = 0; i < this->size(); ++i){ //i is rgs here
@@ -63,7 +69,7 @@ namespace covariateutils{
 		for(size_t i = 0; i < read.skips.size(); ++i){
 			if(!read.skips[i]){
 				q = read.qual[i];
-				if((*this)[rg].size() <= q){(*this)[rg].resize(q+1);}
+				if(this->at(rg).size() <= q){this->at(rg).resize(q+1);}
 				(*this)[rg].increment(q, std::array<unsigned long long, 2>({read.errors[i], 1}));
 			}
 		}
