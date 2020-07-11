@@ -13,11 +13,14 @@
 #include <minion.hpp>
 #include "readutils.hh"
 #include "kseq.hh"
+#include "bloom.hh"
+#include <cstdlib>
 
 //This is defined starting in version 1.10
 #ifndef HTS_VERSION
 #define HTS_VERSION 0 
 #endif
+#define KBBQ_MAX_KMER 31
 
 static_assert(HTS_VERSION >= 101000, "Your version of htslib is out of date. KBBQ requires version >= 1.10.");
 
@@ -113,25 +116,28 @@ public:
 	minion::Random rng;
 	std::bernoulli_distribution d;
 	std::string readseq = "";
-	std::vector<uint64_t> kmers;
+	std::vector<bloom::Kmer> kmers;
+	bloom::Kmer kmer;
 	size_t cur_kmer = 0;
+	size_t total_kmers = 0;
+	bool not_eof = true;
 	int k;
-	KmerSubsampler(HTSFile* file): KmerSubsampler(file, 32){}
+	KmerSubsampler(HTSFile* file): KmerSubsampler(file, KBBQ_MAX_KMER){}
 	KmerSubsampler(HTSFile* file, int k): KmerSubsampler(file, k, .15){}
 	KmerSubsampler(HTSFile* file, int k, double alpha): KmerSubsampler(file, k, alpha,  minion::create_seed_seq().GenerateOne()){}
-	KmerSubsampler(HTSFile* file, int k, double alpha, uint64_t seed): file(file), k(k), d(alpha) {rng.Seed(seed);}
+	KmerSubsampler(HTSFile* file, int k, double alpha, uint64_t seed): file(file), k(k), kmer(k), d(alpha) {rng.Seed(seed); std::srand(17); std::cerr << "p: " << d.p() << std::endl;} //todo remove srand
 	
-	//return the next hashed kmer
+	//return the next kmer
 	//once the file is finished iterating and there are no remaining kmers,
-	//return 0. That means you should check readseq.empty() if you get a 0!
-	//if !readseq.empty() that means a kmer hashed to 0 but there are further kmers.
-	uint64_t next_kmer();
+	//return an empty kmer. You should check the not_eof flag.
+	//the kmer returned is not guaranteed to be valid.
+	bloom::Kmer next_kmer();
 
-	//return the next hashed kmer that survives sampling
-	//once there are no more kmers return 0.
-	// check to see if readseq.empty() if you get a 0 result!
-	//if !readseq.empty() that means a kmer hashed to 0 but there are further kmers.
-	uint64_t next();
+	//return the next kmer that survives sampling.
+	//it is not gauranteed to be valid.
+	bloom::Kmer next();
+	inline bloom::Kmer operator()() {return this->next();}
+	inline explicit operator bool() const{return not_eof;}
 };
 
 }

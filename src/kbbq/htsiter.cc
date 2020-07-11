@@ -65,45 +65,46 @@ int FastqFile::write(){
 }
 
 // KmerSubsampler
-
-//return the next kmer
-//once the file is finished iterating and there are no remaining kmers,
-//return 0. That means you should check readseq.empty() if you get a 0!
-uint64_t KmerSubsampler::next_kmer(){
+bloom::Kmer KmerSubsampler::next_kmer(){
 	if(cur_kmer < kmers.size()){
 		return kmers[cur_kmer++]; //return the current kmer and advance
 	} else {
 		readseq = file->next_str();
+		kmer.reset();
 		if(readseq.empty()){
-			return 0; //no more sequences
+			this->not_eof = false;
+			return kmer; //no more sequences
 		} else {
-			bloom::Kmer kmer(k);
 			kmers.clear();
 			for(size_t i = 0; i < readseq.length(); ++i){
-				if(kmer.push_back(readseq[i]) >= k && kmer.valid()){
-					kmers.push_back(kmer.get());
+				kmer.push_back(readseq[i]);
+				if(i >= k-1){
+					kmers.push_back(kmer);
 				}
 			}
 			cur_kmer = 0; //reset current kmer
+			total_kmers += kmers.size();
 			return this->next_kmer(); //try again
 		}
 	}
 }
 
-//return the next kmer that survives sampling
-//once there are no more kmers return 0.
-// check to see if readseq.empty() if you get a 0 result!
-uint64_t KmerSubsampler::next(){
-	uint64_t kmer = this->next_kmer();
-	if(!readseq.empty()){
+bloom::Kmer KmerSubsampler::next(){
+	bloom::Kmer kmer = this->next_kmer();
+	if(this->not_eof){
+#ifndef NDEBUG
+		double p = std::rand() / (double)RAND_MAX;
+		if(p < this->d.p()){
+#else
 		if(d(rng)){ //sampled
+#endif
 			return kmer;
 		}
 		else{ //try again
 			return this->next();
 		}
 	}
-	return 0; // empty
+	return kmer; // empty
 }
 
 
