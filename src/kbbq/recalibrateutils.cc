@@ -6,15 +6,16 @@ namespace recalibrateutils{
 
 //if the number of reads doesn't fit in a uint64_t call this twice :)
 kmer_cache_t subsample_kmers(KmerSubsampler& s, uint64_t chunksize){
-	uint64_t kmer = 0;
 	uint64_t counted = 0;
 	kmer_cache_t ret;
 	ret.fill(std::vector<uint64_t>());
 	//the order here matters since we don't want to advance the iterator if we're chunked out
-	while(counted++ < chunksize && ((kmer = s.next()) != 0 || !s.readseq.empty())){
-		uint64_t prefix = kmer & ((1<<PREFIXBITS)-1);
-		ret[prefix].push_back(kmer);
+	for(bloom::Kmer kmer = s.next(); ++counted < chunksize && s.not_eof; kmer = s.next()){
+		if(kmer.valid()){
+			ret[kmer.prefix()].push_back(kmer.get());
+		}
 	}
+	std::cerr << "Total kmers in dataset: " << s.total_kmers << std::endl;
 	return ret;
 }
 
