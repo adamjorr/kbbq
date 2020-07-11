@@ -11,6 +11,8 @@
 #include <stdexcept>
 
 #define PREFIXBITS 10
+#define KBBQ_MAX_KMER 31
+
 //the number of prefix hashes is 1<<PREFIXBITS - 1
 
 namespace bloom{
@@ -53,6 +55,7 @@ public:
 		} 
 		return ret;
 	}
+	inline explicit operator bool() const{return this->valid();}
 };
 
 //a bloom filter. TODO: make blocked; hold an array of bloom filters and
