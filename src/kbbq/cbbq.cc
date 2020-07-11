@@ -10,8 +10,6 @@
 #include <getopt.h>
 #include <cassert>
 
-#define KBBQ_MAX_KMER 31
-
 //opens file filename and returns a unique_ptr to the result.
 std::unique_ptr<htsiter::HTSFile> open_file(std::string filename, bool is_bam = true, bool use_oq = false, bool set_oq = false){
 	std::unique_ptr<htsiter::HTSFile> f(nullptr);
@@ -105,7 +103,7 @@ int main(int argc, char* argv[]){
 #endif
 			case '?':
 			default:
-				std::cerr << "Unknown argument " << opt << std::endl;
+				std::cerr << "Unknown argument " << (char)opt << std::endl;
 				return 1;
 				break;
 		}
@@ -201,32 +199,14 @@ int main(int argc, char* argv[]){
 
 	std::cerr << "Sampling kmers at rate " << alpha << std::endl;
 	recalibrateutils::kmer_cache_t subsampled_hashes;
-#ifndef NDEBUG
-//if a kmer list is provided, take kmers from it instead of sampling
-if(kmerlist == ""){
-#endif
-	//if not in debug mode, we sample kmers here.
+
+	//sample kmers here.
 	htsiter::KmerSubsampler subsampler(file.get(), k, alpha);
 	//load subsampled bf.
 	//these are hashed kmers.
 	subsampled_hashes = recalibrateutils::subsample_kmers(subsampler);
-#ifndef NDEBUG
-} else {
-	subsampled_hashes.fill(std::vector<uint64_t>());
-	std::ifstream kmersin(kmerlist);
-	bloom::Kmer kin(k);
-	for(std::string line; std::getline(kmersin, line); ){
-		kin.reset();
-		for(char c: line){
-			kin.push_back(c);
-		}
-		if(kin.valid()){
-			subsampled_hashes[kin.prefix()].push_back(kin.get());
-		}
-	}
-}
-#endif
 
+	//report number of sampled kmers
 	uint64_t nsampled = 0;
 	for(std::vector<uint64_t>& v : subsampled_hashes){
 		nsampled += v.size();
@@ -237,16 +217,18 @@ if(kmerlist == ""){
 	recalibrateutils::add_kmers_to_bloom(subsampled_hashes, subsampled);
 
 #ifndef NDEBUG
-	//ensure kmers added are actually queriable!
-	std::ifstream kmersin(kmerlist);
-	bloom::Kmer kin(k);
-	for(std::string line; std::getline(kmersin, line); ){
-		kin.reset();
-		for(char c: line){
-			kin.push_back(c);
-		}
-		if(kin.valid()){
-			assert(subsampled.query(kin));
+	//ensure kmers are properly sampled
+	if(kmerlist != ""){
+		std::ifstream kmersin(kmerlist);
+		bloom::Kmer kin(k);
+		for(std::string line; std::getline(kmersin, line); ){
+			kin.reset();
+			for(char c: line){
+				kin.push_back(c);
+			}
+			if(kin.valid()){
+				assert(subsampled.query(kin));
+			}
 		}
 	}
 #endif
