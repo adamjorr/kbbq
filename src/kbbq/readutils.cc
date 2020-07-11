@@ -80,7 +80,7 @@ namespace readutils{
 			current_pos = fullname.find(namedelimiter); //reset the delimiter; this is npos if no more fields
 			if(fullname.substr(0,3) == "RG:"){
 				size_t last_colon = fullname.find_last_of(":", current_pos); // current_pos is last char to search
-				rg = fullname.substr(last_colon, current_pos);
+				rg = fullname.substr(last_colon+1, current_pos);
 			}
 		}
 		this->rg = rg;
@@ -586,12 +586,6 @@ namespace readutils{
 		std::copy(this->qual.cbegin()+pos, this->qual.cbegin()+pos+len, ret.qual.begin());
 		std::copy(this->skips.cbegin()+pos, this->skips.cbegin()+pos+len, ret.skips.begin());
 		std::copy(this->errors.cbegin()+pos, this->errors.cbegin()+pos+len, ret.errors.begin());
-
-		// for(size_t i = 0; i < count && i < this->seq.length(); ++i){
-			// ret.qual[i] = this->qual[pos + i];
-			// ret.skips[i] = this->skips[pos + i];
-			// ret.errors[i] = this->errors[pos + i];
-		// }
 		return ret;
 	}
 
