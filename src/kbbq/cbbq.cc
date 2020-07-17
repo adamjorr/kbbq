@@ -253,7 +253,7 @@ int main(int argc, char* argv[]){
 	// std::vector<int> lighter_thresholds = {0, 1, 2, 3, 3, 4, 5, 5, 6, 6, 6,
 	// 	7, 7, 8, 8, 9, 9, 9, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 14, 14, 14, 15};
 	std::vector<int> lighter_thresholds = {0, 1, 2, 3, 4, 5, 5, 6, 6, 7, 8, 8, 9, 9, 10,
-		10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 18};
+		10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19};
 	std::cerr << "Thresholds: [ " ;
 	std::copy(thresholds.begin(), thresholds.end(), std::ostream_iterator<int>(std::cerr, " "));
 	std::cerr << "]" << std::endl;

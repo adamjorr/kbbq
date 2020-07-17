@@ -26,7 +26,7 @@ protected:
 	uint64_t mask;
 	uint64_t shift;
 public:
-	Kmer(int k): k(k), s(0), mask((1ULL<<k*2) - 1), shift((k-1)*2) {x[0] = x[1] = 0;}
+	Kmer(int k): k(k), s(0), mask(k < 32 ? (1ULL<<k*2) - 1 : -1), shift((k-1)*2) {x[0] = x[1] = 0;}
 	Kmer(const Kmer& o): k(o.k), s(o.s), mask(o.mask), shift(o.shift), x{o.x[0], o.x[1]} {}
 	//add a character and return the number of times the kmer has been added to since last reset
 	inline size_t push_back(char ch){
