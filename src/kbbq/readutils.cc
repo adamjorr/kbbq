@@ -440,7 +440,6 @@ namespace readutils{
 						//we clear everything from beginning to end
 						for(size_t j = trusted_start; j <= trusted_end; ++j){
 							if(this->errors[j]){
-								std::cerr << "(1) Problem: j: " << j << " " << trusted_start << " " << trusted_end << std::endl;
 								adjust = false;
 								break;
 							}
