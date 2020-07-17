@@ -10,11 +10,12 @@ kmer_cache_t subsample_kmers(KmerSubsampler& s, uint64_t chunksize){
 	kmer_cache_t ret;
 	ret.fill(std::vector<uint64_t>());
 	//the order here matters since we don't want to advance the iterator if we're chunked out
-	for(bloom::Kmer kmer = s.next(); ++counted < chunksize && s.not_eof; kmer = s.next()){
+	for(bloom::Kmer kmer = s.next(); counted++ < chunksize && s.not_eof; kmer = s.next()){
 		if(kmer.valid()){
 			ret[kmer.prefix()].push_back(kmer.get());
 		}
 	}
+	std::cerr << "Sampled kmers: " << counted << std::endl;
 	std::cerr << "Total kmers in dataset: " << s.total_kmers << std::endl;
 	return ret;
 }
@@ -41,14 +42,14 @@ kmer_cache_t find_trusted_kmers(HTSFile* file, const bloom::Bloom& sampled, std:
 		n_trusted = 0;
 		kmer.reset();
 		for(int i = 0; i < read.seq.length(); ++i){
+			kmer.push_back(read.seq[i]);
 			if(!read.errors[i]){
 				++n_trusted;
 			}
 			if(i >= k && !read.errors[i-k]){
 				--n_trusted;
 			}
-			kmer.push_back(read.seq[i]);
-			if(kmer.size() >= k && n_trusted == k){
+			if(kmer.valid() && n_trusted == k){
 				ret[kmer.prefix()].push_back(kmer.get());
 				//trusted kmer here
 			}

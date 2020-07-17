@@ -8,16 +8,12 @@ namespace bloom
 {
 
 	Bloom::Bloom(unsigned long long int projected_element_count, double fpr,
-	unsigned long long int seed): params(){
-		params.projected_element_count = projected_element_count;
-		params.false_positive_probability = fpr;
-		params.random_seed = seed;
+	unsigned long long int seed):
+		params(projected_element_count, fpr, seed), bloom(params){
 		if(!params){
 			throw std::invalid_argument("Error: Invalid bloom filter parameters. \
 				Adjust parameters and try again.");
 		}
-		params.compute_optimal_parameters();
-		bloom = bloom_filter(params);
 	}
 
 	Bloom::~Bloom(){}
@@ -77,8 +73,10 @@ namespace bloom
 		return count;
 	}
 
-	char get_next_trusted_char(const Kmer& kmer, const Bloom& trusted){
-		for(char c: {'A','C','G','T'}){
+	char get_next_trusted_char(const Kmer& kmer, const Bloom& trusted, bool reverse_test_order){
+		const std::array<char, 4> test_bases = !reverse_test_order ?
+			std::array<char, 4>{'A','C','G','T'}: std::array<char, 4>{'T','G','C','A'};
+		for(const char& c: test_bases){
 			Kmer extra = kmer;
 			extra.push_back(c);
 			if(trusted.query(extra)){
@@ -122,7 +120,7 @@ namespace bloom
 		return std::array<size_t,2>{{anchor_start, anchor_end}};
 	}
 
-	std::tuple<std::vector<char>,size_t,bool> find_longest_fix(std::string seq, const Bloom& trusted, int k){
+	std::tuple<std::vector<char>,size_t,bool> find_longest_fix(std::string seq, const Bloom& trusted, int k, bool reverse_test_order){
 #ifndef NDEBUG
 		std::cerr << seq << std::endl;
 #endif
@@ -132,14 +130,16 @@ namespace bloom
 		bool single = false; //this pair of flags will be used to determine whether
 		bool multiple = false; //multiple corrections were considered
 		char unfixed_char = seq[k-1];
-		for(const char& c: {'A','C','G','T'}){
+		const std::array<char,4> test_bases = !reverse_test_order ?
+			std::array<char, 4>{'A','C','G','T'}: std::array<char, 4>{'T','G','C','A'};
+		for(const char& c: test_bases){
 			if(c == unfixed_char){continue;}
 			seq[k-1] = c;
 			kmer.reset();
 			size_t i;
-			size_t i_stop = std::max((size_t)2*k-1, seq.length());
+			size_t i_stop = std::max((size_t)2*k-1, seq.length()); //2k-1 -> 2k?
 			for(i = 0; i < i_stop; ++i){ //i goes to max(2*k-1, seq.length())
-				char n = i < seq.length() ? seq[i] : get_next_trusted_char(kmer, trusted);
+				char n = i < seq.length() ? seq[i] : get_next_trusted_char(kmer, trusted, reverse_test_order);
 				if(n == 0){ // no next trusted kmer
 					break;
 				}
@@ -230,7 +230,7 @@ namespace bloom
 		} // if we make it through this loop, we need to adjust the anchor.
 		//we will test fixes starting with halfway through the last kmer to the end.
 		//how much we're winding back the anchor; anchor-i-k must be > 0.
-		for(int i = k/2-1; i >= 0 && anchor > i+k; --i){ 
+		for(int i = k/2-1; i >= 0 && anchor > i+k-1; --i){ 
 			kmer.reset();
 			modified_idx = anchor-i;
 			// size_t modified_idx = anchor+1-i+k-2;
@@ -265,6 +265,34 @@ namespace bloom
 		}
 		//couldn't find a better adjustment
 		return std::make_pair(anchor, multiple);
+	}
+
+	int biggest_consecutive_trusted_block(std::string seq, const Bloom& trusted, int k, int current_len){
+		Kmer kmer(k);
+		int in = 0;
+		int out = 0;
+		int len = 0;
+		for (size_t i = 0; i < seq.length(); ++i) {
+			kmer.push_back(seq[i]);
+			if (i >= k-1){ //we have a full k-mer
+				if(trusted.query(kmer)){ //if it's in, increment
+					++in;
+				} else { //otherwise, reset but record the miss
+					if(in > len){
+						len = in;
+					}
+					in = 0;
+					++out;
+					if(k - out < current_len){ //end if we have too many misses
+						break;
+					}
+				}
+			}
+		}
+		if(in > len){
+			len = in;
+		}
+		return len;
 	}
 
 //end namespace

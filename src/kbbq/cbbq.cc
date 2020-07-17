@@ -118,8 +118,8 @@ int main(int argc, char* argv[]){
 	}
 
 
-	long double sampler_desiredfpr = 0.01;
-	long double trusted_desiredfpr = 0.0005;
+	long double sampler_desiredfpr = 0.000001; //Lighter uses .01
+	long double trusted_desiredfpr = 0.000000001; // and .0005
 
 	//see if we have a bam
 	htsFormat fmt;
@@ -200,7 +200,13 @@ int main(int argc, char* argv[]){
 	std::cerr << "Sampling kmers at rate " << alpha << std::endl;
 	recalibrateutils::kmer_cache_t subsampled_hashes;
 
+	bloom::Bloom subsampled(genomelen*1.5, sampler_desiredfpr);
+	bloom::Bloom trusted(genomelen*1.5, trusted_desiredfpr);
+
 	//sample kmers here.
+#ifndef NDEBUG
+	std::srand(17);
+#endif
 	htsiter::KmerSubsampler subsampler(file.get(), k, alpha);
 	//load subsampled bf.
 	//these are hashed kmers.
@@ -211,9 +217,7 @@ int main(int argc, char* argv[]){
 	for(std::vector<uint64_t>& v : subsampled_hashes){
 		nsampled += v.size();
 	}
-	std::cerr << "Sampled " << nsampled << " kmers." << std::endl;
-
-	bloom::Bloom subsampled(genomelen*1.5, sampler_desiredfpr);
+	std::cerr << "Sampled " << nsampled << " valid kmers." << std::endl;
 	recalibrateutils::add_kmers_to_bloom(subsampled_hashes, subsampled);
 
 #ifndef NDEBUG
@@ -246,8 +250,10 @@ int main(int argc, char* argv[]){
 	long double p = bloom::calculate_phit(subsampled, alpha);
 	std::vector<int> thresholds = covariateutils::calculate_thresholds(k, p);
 #ifndef NDEBUG
-	std::vector<int> lighter_thresholds = {0, 1, 2, 3, 3, 4, 5, 5, 6, 6, 6,
-		7, 7, 8, 8, 9, 9, 9, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 14, 14, 14, 15};
+	// std::vector<int> lighter_thresholds = {0, 1, 2, 3, 3, 4, 5, 5, 6, 6, 6,
+	// 	7, 7, 8, 8, 9, 9, 9, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 14, 14, 14, 15};
+	std::vector<int> lighter_thresholds = {0, 1, 2, 3, 4, 5, 5, 6, 6, 7, 8, 8, 9, 9, 10,
+		10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 18};
 	std::cerr << "Thresholds: [ " ;
 	std::copy(thresholds.begin(), thresholds.end(), std::ostream_iterator<int>(std::cerr, " "));
 	std::cerr << "]" << std::endl;
@@ -269,7 +275,6 @@ int main(int argc, char* argv[]){
 	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
 	recalibrateutils::kmer_cache_t trusted_hashes = 
 		recalibrateutils::find_trusted_kmers(file.get(), subsampled, thresholds, k);
-	bloom::Bloom trusted(genomelen*1.5, trusted_desiredfpr);
 	recalibrateutils::add_kmers_to_bloom(trusted_hashes, trusted);
 
 #ifndef NDEBUG

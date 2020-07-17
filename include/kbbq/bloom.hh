@@ -48,6 +48,8 @@ public:
 	inline size_t size() const{return s;}
 	//whether the kmer has enough bases to be of length k
 	inline bool valid() const{return (s >= k);}
+	//the length of the kmer
+	inline int ksize() const{return k;}
 	inline operator std::string() const {
 		std::string ret{};
 		for(int i = 1; i <= k; ++i){
@@ -75,7 +77,8 @@ public:
 	template <typename T>
 	inline void insert(const T& t){bloom.insert(t);}
 	inline bool query(const Kmer& kmer) const {return (kmer.valid() && bloom.contains(kmer.get()));}
-	inline double fprate() const {return bloom.effective_fpp();}
+	// inline double fprate() const {return bloom.effective_fpp();}
+	inline double fprate() const {return bloom.GetActualFP();}
 };
 
 // typedef std::array<Bloom,(1<<PREFIXBITS)> bloomary_t;
@@ -87,7 +90,8 @@ int nkmers_in_bf(std::string seq, const Bloom& b, int k);
 
 //given a kmer, get the next character (in ACGT order) that would create a trusted
 //kmer when appended and return it. Return 0 if none would be trusted.
-char get_next_trusted_char(const bloom::Kmer& kmer, const Bloom& trusted);
+//Set the flag to test in TGCA order instead.
+char get_next_trusted_char(const bloom::Kmer& kmer, const Bloom& trusted, bool reverse_test_order = false);
 
 //return the INCLUSIVE indices bounding the largest stretch of trusted sequence
 //if the first value is -1, there are no trusted kmers.
@@ -100,7 +104,9 @@ std::array<size_t,2> find_longest_trusted_seq(std::string seq, const Bloom& b, i
 //return the best character (multiple in case of a tie), the index of the next untrusted base,
 // and whether multiple corrections were considered for the fix.
 //if the length of the fix character vector is 0, no fix was found and correction should end.
-std::tuple<std::vector<char>, size_t, bool> find_longest_fix(std::string seq, const Bloom& t, int k);
+//If the sequence is reverse-complemented, set the flag to test bases in reverse order
+// (TGCA) instead of (ACGT)
+std::tuple<std::vector<char>, size_t, bool> find_longest_fix(std::string seq, const Bloom& t, int k, bool reverse_test_order = false);
 
 //given the sampling rate, calculate the probability any kmer is in the array.
 long double calculate_phit(const Bloom& bf, long double alpha);
@@ -118,6 +124,11 @@ int numhashes(long double fpr);
 //return {anchor, multiple}, the location of the new anchor and whether multiple corrections
 //were possible during anchor adjustment.
 std::pair<size_t, bool> adjust_right_anchor(size_t anchor, std::string seq, const Bloom& trusted, int k);
+
+//get the biggest consecutive trusted block, for creating a trusted anchor when
+//one doesn't exist. If there are too many consecutive misses, the procedure
+//will end early. 94518
+int biggest_consecutive_trusted_block(std::string seq, const Bloom& trusted, int k, int current_len);
 
 }
 

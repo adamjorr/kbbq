@@ -125,7 +125,7 @@ public:
 	KmerSubsampler(HTSFile* file): KmerSubsampler(file, KBBQ_MAX_KMER){}
 	KmerSubsampler(HTSFile* file, int k): KmerSubsampler(file, k, .15){}
 	KmerSubsampler(HTSFile* file, int k, double alpha): KmerSubsampler(file, k, alpha,  minion::create_seed_seq().GenerateOne()){}
-	KmerSubsampler(HTSFile* file, int k, double alpha, uint64_t seed): file(file), k(k), kmer(k), d(alpha) {rng.Seed(seed); std::srand(17); std::cerr << "p: " << d.p() << std::endl;} //todo remove srand
+	KmerSubsampler(HTSFile* file, int k, double alpha, uint64_t seed): file(file), k(k), kmer(k), d(alpha) {rng.Seed(seed); std::cerr << "p: " << d.p() << std::endl;} //todo remove srand
 	
 	//return the next kmer
 	//once the file is finished iterating and there are no remaining kmers,

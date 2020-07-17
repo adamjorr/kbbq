@@ -177,16 +177,16 @@ namespace readutils{
 			this->errors[i] = (in[i] <= thresholds[possible[i]] || this->qual[i] <= INFER_ERROR_BAD_QUAL);
 #ifndef NDEBUG
 			if(possible[i] > k){std::cerr << "seq:" << this->seq << " " << possible[i] << "WARNING: Invalid i: " << i << std::endl;}
-			if(i>=k-1 && std::string(this->seq, i-k+1, k) == "TACTATCGTCTTGATTTCTTCTTCAGAGAGT"){
-				std::cerr << "seq: " << this->seq << "\n";
-				std::cerr << "in: ";
-				std::copy(in.begin()+i-k+1, in.begin()+i+1, std::ostream_iterator<size_t>(std::cerr, ", "));
-				std::cerr << "\npossible: ";
-				std::copy(possible.begin()+i-k+1, possible.begin()+i+1, std::ostream_iterator<size_t>(std::cerr, ", "));
-				std::cerr << "\nerrors: ";
-				std::copy(this->errors.begin()+i-k+1, this->errors.begin()+i+1, std::ostream_iterator<bool>(std::cerr, ", "));
-				std::cerr << std::endl;
-			}			
+			// if(i>=k-1 && std::string(this->seq, i-k+1, k) == "CCCCCCCCCTCGCCCCCCCCCCCCCCCCCCC"){
+			// 	std::cerr << "seq: " << this->seq << "\n";
+			// 	std::cerr << "in: ";
+			// 	std::copy(in.begin()+i-k+1, in.begin()+i+1, std::ostream_iterator<size_t>(std::cerr, ", "));
+			// 	std::cerr << "\npossible: ";
+			// 	std::copy(possible.begin()+i-k+1, possible.begin()+i+1, std::ostream_iterator<size_t>(std::cerr, ", "));
+			// 	std::cerr << "\nerrors: ";
+			// 	std::copy(this->errors.begin()+i-k+1, this->errors.begin()+i+1, std::ostream_iterator<bool>(std::cerr, ", "));
+			// 	std::cerr << std::endl;
+			// }			
 #endif
 		}
 	}
@@ -210,14 +210,19 @@ namespace readutils{
 				}
 				//
 				if(t.query(magic_kmer)){
+					//94518
+					int n_in = bloom::biggest_consecutive_trusted_block(
+						original_seq.substr(start, 2*k - 1),t,k,best_fix_len);
 #ifndef NDEBUG					
-					std::cerr << "Found a kmer: " << magic_kmer << std::endl;
+					std::cerr << "Found a kmer: " << magic_kmer << " i: " << i << " Fix len: " << n_in << std::endl;
 #endif
-					int n_in = bloom::nkmers_in_bf(original_seq.substr(start, 2*k - 1),t,k);
-					if(n_in > best_fix_len){
+					if(n_in > best_fix_len){ //94518
 						best_fix_base = c;
 						best_fix_pos = i;
 						best_fix_len = n_in;
+					} else if(n_in == best_fix_len && this->qual[i] < this->qual[best_fix_pos]){
+						best_fix_base = c;
+						best_fix_pos = i;
 					}
 				}
 			}
@@ -248,6 +253,9 @@ namespace readutils{
 				return this->errors;
 			} else {
 				anchor = bloom::find_longest_trusted_seq(this->seq, trusted, k);
+#ifndef	NDEBUG
+				std::cerr << "Created anchor: [" << anchor[0] << ", " << anchor[1] << "]" << std::endl;
+#endif				
 				this->errors[corrected_idx] = true;
 			}
 		}
@@ -255,11 +263,13 @@ namespace readutils{
 			return this->errors;
 		}
 		//we're guaranteed to have a valid anchor now.
+		//min is in case anchor[1] is npos.
+		size_t anchor_len = std::min(anchor[1], this->seq.length()-1) + 1 - anchor[0];
 		bool corrected = false; //whether there were any corrections
 		//right side
 		if(anchor[1] != std::string::npos){
 			//number of trusted kmers >= k
-			if(anchor[1] + 1 - anchor[0] - k + 1 >= k){ //len of trusted seq -k + 1
+			if(anchor_len - k + 1 >= k){ //number of trusted kmers 
 				bool current_multiple;
 				std::tie(anchor[1], current_multiple) = bloom::adjust_right_anchor(anchor[1], this->seq, trusted, k);
 #ifndef NDEBUG
@@ -338,8 +348,8 @@ namespace readutils{
 			std::string revcomped(this->seq.length(), 'N');
 			std::transform(this->seq.rbegin(), this->seq.rend(), revcomped.begin(),
 				[](char c) -> char {return seq_nt16_str[seq_nt16_table[('0' + 3-seq_nt16_int[seq_nt16_table[c]])]];});
-			//
-			if(anchor[1] + 1 - anchor[0] - k + 1 >= k){ //number of trusted kmers >= k
+			//if num of trusted kmers >= k, see if anchor needs adjusting.
+			if(anchor_len - k + 1 >= k){ 
 				size_t left_adjust;
 				bool current_multiple;
 				std::tie(left_adjust, current_multiple) = bloom::adjust_right_anchor(revcomped.length()-anchor[0]-1, revcomped, trusted, k);
@@ -358,7 +368,7 @@ namespace readutils{
 				std::vector<char> fix;
 				size_t fixlen;
 				bool current_multiple;
-				std::tie(fix, fixlen, current_multiple) = bloom::find_longest_fix(sub, trusted, k);
+				std::tie(fix, fixlen, current_multiple) = bloom::find_longest_fix(sub, trusted, k, true); //155392 TODO: add reverse_test to adjust_right_anchor
 #ifndef NDEBUG
 				std::cerr << "L Fix Multiple: " << current_multiple << std::endl;
 #endif
@@ -377,7 +387,7 @@ namespace readutils{
 						//Line num: 21537
 						// if(next_untrusted_idx - 1 <= std::max(start + (size_t)2*k - 1, revcomped.length())){
 						size_t largest_possible_idx = std::min(start + (size_t)2*k - 1, revcomped.length()-1);
-						if(next_untrusted_idx < largest_possible_idx || largest_possible_idx - i + 1 < k){
+						if(next_untrusted_idx < largest_possible_idx || largest_possible_idx - j + 1 < k){ //595573
 							//if there's a tie and we haven't gone the max number of kmers, end correction
 							bad_prefix = i;
 							break;
@@ -397,7 +407,7 @@ namespace readutils{
 #ifndef NDEBUG
 					std::cerr << "Couldn't fix position " << i << "Cutting read and trying again." << std::endl;//". Skipping ahead " << k - 1 << "." << std::endl;
 #endif			
-					bad_prefix = i + 1; //this may possibly need to be i
+					bad_prefix = i; //the last position in the new read
 					break;
 					// i -= k-1;
 					// if(i + k <= (seq.length()/2) || i + k <= 2*k ){
@@ -430,6 +440,7 @@ namespace readutils{
 						//we clear everything from beginning to end
 						for(size_t j = trusted_start; j <= trusted_end; ++j){
 							if(this->errors[j]){
+								std::cerr << "(1) Problem: j: " << j << " " << trusted_start << " " << trusted_end << std::endl;
 								adjust = false;
 								break;
 							}
@@ -439,16 +450,17 @@ namespace readutils{
 					}
 				}
 			}
-			//if we get to the end but have a trusted block:
-			if(trusted_end != std::string::npos){
-				// std::cerr << "Problem: " << trusted_start << " " << trusted_end << std::endl;
-				for(size_t j = trusted_start; j <= trusted_end; ++j){
-					if(this->errors[j]){
-						adjust = false;
-						break;
-					}
-				}
-			}
+			//if we get to the end but have a trusted block
+			//we don't actually trust that block :|
+			// if(trusted_end != std::string::npos){
+			// 	for(size_t j = trusted_start; j <= trusted_end; ++j){
+			// 		if(this->errors[j]){
+			// 			std::cerr << "(2) Problem: j: " << j << " " << trusted_start << " " << trusted_end << std::endl;
+			// 			adjust = false;
+			// 			break;
+			// 		}
+			// 	}
+			// }
 #ifndef NDEBUG
 			std::cerr << "Adjust: " << adjust << " Multiple: " << multiple << std::endl;
 #endif
@@ -530,7 +542,7 @@ namespace readutils{
 				}
 			}
 		}
-		if(first_call && bad_prefix > 0 && (bad_prefix > this->seq.length() / 2 || bad_prefix > 2*k)){
+		if(first_call && bad_prefix > 0 && (bad_prefix >= this->seq.length() / 2 || bad_prefix >= 2*k)){
 #ifndef NDEBUG			
 			std::cerr << "bad_prefix: " << bad_prefix << std::endl;
 #endif
