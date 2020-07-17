@@ -20,7 +20,6 @@
 #ifndef HTS_VERSION
 #define HTS_VERSION 0 
 #endif
-#define KBBQ_MAX_KMER 31
 
 static_assert(HTS_VERSION >= 101000, "Your version of htslib is out of date. KBBQ requires version >= 1.10.");
 
