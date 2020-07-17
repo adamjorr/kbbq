@@ -92,7 +92,7 @@ bloom::Kmer KmerSubsampler::next_kmer(){
 bloom::Kmer KmerSubsampler::next(){
 	bloom::Kmer kmer = this->next_kmer();
 	if(this->not_eof){
-#ifndef NDEBUG
+#ifdef KBBQ_USE_RAND_SAMPLER
 		double p = std::rand() / (double)RAND_MAX;
 		if(p < this->d.p()){
 #else

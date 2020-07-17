@@ -10,6 +10,10 @@
 #include <getopt.h>
 #include <cassert>
 
+#ifndef NDEBUG
+#define KBBQ_USE_RAND_SAMPLER
+#endif
+
 //opens file filename and returns a unique_ptr to the result.
 std::unique_ptr<htsiter::HTSFile> open_file(std::string filename, bool is_bam = true, bool use_oq = false, bool set_oq = false){
 	std::unique_ptr<htsiter::HTSFile> f(nullptr);
@@ -204,7 +208,7 @@ int main(int argc, char* argv[]){
 	bloom::Bloom trusted(genomelen*1.5, trusted_desiredfpr);
 
 	//sample kmers here.
-#ifndef NDEBUG
+#ifdef KBBQ_USE_RAND_SAMPLER
 	std::srand(17);
 #endif
 	htsiter::KmerSubsampler subsampler(file.get(), k, alpha);
