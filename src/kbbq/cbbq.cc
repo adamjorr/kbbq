@@ -60,7 +60,7 @@ struct option long_options[] = {
 };
 
 int main(int argc, char* argv[]){
-	int k = 31;
+	int k = 32;
 	uint64_t genomelen = 0; //est w/ index with bam, w/ fq estimate w/ coverage
 	uint coverage = 0; //if not given, will be estimated.
 	bool set_oq = false;

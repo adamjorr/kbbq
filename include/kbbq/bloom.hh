@@ -11,7 +11,7 @@
 #include <stdexcept>
 
 #define PREFIXBITS 10
-#define KBBQ_MAX_KMER 31
+#define KBBQ_MAX_KMER 32
 
 //the number of prefix hashes is 1<<PREFIXBITS - 1
 
