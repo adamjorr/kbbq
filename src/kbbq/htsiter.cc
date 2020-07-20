@@ -17,9 +17,14 @@ void BamFile::recalibrate(const std::vector<int>& qual){
 		//returns 0 on success, -1 on fail. We should consider throwing if it fails.
 		int r = bam_aux_update_str(this->r, "OQ", qstr.length(), qstr.c_str());
 	}
-	for(int i = 0; i < this->r->core.l_qseq; ++i){
-		q[i] = (char)qual[i];
+	if(bam_is_rev(this->r)){
+		std::reverse_copy(qual.begin(), qual.end(), q)
+	} else {
+		std::copy(qual.begin(), qual.end(), q);
 	}
+	// for(int i = 0; i < this->r->core.l_qseq; ++i){
+	// 	q[i] = (char)qual[i];
+	// }
 }
 // TODO:: add a PG tag to the header
 int BamFile::open_out(std::string filename){this->of = sam_open(filename.c_str(), "wb"); return sam_hdr_write(this->of, this->h);}

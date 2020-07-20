@@ -33,7 +33,9 @@ namespace readutils{
 			this->qual.assign(bam_get_qual(bamrecord), bam_get_qual(bamrecord) + bamrecord->core.l_qseq);
 		}
 		if(bam_is_rev(bamrecord)){
-			std::reverse(this->seq.begin(), this->seq.end());
+			// std::reverse(this->seq.begin(), this->seq.end());
+			std::transform(this->seq.rbegin(), this->seq.rend(), this->seq.begin(),
+				[](char c) -> char {return seq_nt16_str[seq_nt16_table[('0' + 3-seq_nt16_int[seq_nt16_table[c]])]];});
 			std::reverse(this->qual.begin(), this->qual.end());
 		}
 		this->skips.resize(bamrecord->core.l_qseq, 0);
