@@ -18,7 +18,7 @@ void BamFile::recalibrate(const std::vector<int>& qual){
 		int r = bam_aux_update_str(this->r, "OQ", qstr.length(), qstr.c_str());
 	}
 	if(bam_is_rev(this->r)){
-		std::reverse_copy(qual.begin(), qual.end(), q)
+		std::reverse_copy(qual.begin(), qual.end(), q);
 	} else {
 		std::copy(qual.begin(), qual.end(), q);
 	}
