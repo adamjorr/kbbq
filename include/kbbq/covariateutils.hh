@@ -1,6 +1,6 @@
 #ifndef COVARIATEUTILS_H
 #define COVARIATEUTILS_H
-#define MAXQ 93
+#define KBBQ_MAXQ 93
 
 #include <vector>
 #include <utility>
@@ -82,6 +82,10 @@ inline std::vector<int> calculate_thresholds(unsigned long long k, long double p
 		}
 	}
 	return threshold;
+}
+
+inline bool nt_is_not_n(char c){
+	return seq_nt16_int[seq_nt16_table[c]] < 4;
 }
 
 //ensure there's no N!!!!

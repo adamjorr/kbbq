@@ -46,7 +46,7 @@ namespace covariateutils{
 		for(int i = 0; i < this->size(); ++i){ //i is rgs here
 			int map_q = 0; //maximum a posteriori q
 			long double best_posterior = std::numeric_limits<long double>::lowest();
-			for(int possible = 0; possible < MAXQ+1; ++possible){
+			for(int possible = 0; possible < KBBQ_MAXQ+1; ++possible){
 				int diff = std::abs(prior[i] - possible);
 				long double prior_prob = NormalPrior::get_normal_prior(diff);
 				long double p = recalibrateutils::q_to_p(possible);
@@ -82,7 +82,7 @@ namespace covariateutils{
 			for(int j = 0; j < (*this)[i].size(); ++j){ //j is q's here
 				int map_q = 0; //maximum a posteriori q
 				long double best_posterior = std::numeric_limits<long double>::lowest();
-				for(int possible = 0; possible < MAXQ+1; possible++){
+				for(int possible = 0; possible < KBBQ_MAXQ+1; possible++){
 					int diff = std::abs(prior[i] - possible);
 					long double prior_prob = NormalPrior::get_normal_prior(diff);
 					long double p = recalibrateutils::q_to_p(possible);
@@ -109,8 +109,8 @@ namespace covariateutils{
 			if(!read.skips[i]){
 				q = read.qual[i];
 				if((*this)[rg].size() <= q){(*this)[rg].resize(q+1);}
-				if((*this)[rg][q][read.second].size() <= i){(*this)[rg][q][!!read.second].resize(i+1);}
-				(*this)[rg][q][read.second].increment(i, std::array<unsigned long long, 2>({read.errors[i], 1}));
+				if((*this)[rg][q][read.second].size() <= i){(*this)[rg][q][read.second].resize(i+1);}
+				(*this)[rg][q][read.second].increment(i, read.errors[i], 1);
 			}
 		}
 	}
@@ -125,7 +125,7 @@ namespace covariateutils{
 					for(int l = 0; l < (*this)[i][j][k].size(); ++l){ //cycle value
 						int map_q = 0; //maximum a posteriori q
 						long double best_posterior = std::numeric_limits<long double>::lowest();
-						for(int possible = 0; possible < MAXQ+1; possible++){
+						for(int possible = 0; possible < KBBQ_MAXQ+1; possible++){
 							int diff = std::abs(prior[i][j] - possible);
 							long double prior_prob = NormalPrior::get_normal_prior(diff);
 							long double p = recalibrateutils::q_to_p(possible);
@@ -148,12 +148,14 @@ namespace covariateutils{
 		int rg = read.get_rg_int();
 		if(this->size() <= rg){this->resize(rg+1);}
 		int q;
-		for(size_t i = 1; i < read.seq.length(); i++){
+		for(size_t i = 1; i < read.seq.length(); ++i){
 			q = read.qual[i];
-			if(!read.skips[i] && seq_nt16_int[seq_nt16_table[read.seq[i]]] < 4 && seq_nt16_int[seq_nt16_table[read.seq[i-1]]] < 4){
+			if(!read.skips[i] && nt_is_not_n(read.seq[i]) &&
+				nt_is_not_n(read.seq[i-1]) && read.qual[i] >= minscore)
+			{
 				if((*this)[rg].size() <= q){(*this)[rg].resize(q+1);}
 				if((*this)[rg][q].size() < 16){(*this)[rg][q].resize(16);}
-				(*this)[rg][q].increment(dinuc_to_int(read.seq[i-1], read.seq[i]),std::array<unsigned long long, 2>({read.errors[i], 1}));
+				(*this)[rg][q].increment(dinuc_to_int(read.seq[i-1], read.seq[i]), read.errors[i], 1);
 			}
 		}
 		// seq_nt16_table[256]: char -> 4 bit encoded (1/2/4/8)
@@ -170,7 +172,7 @@ namespace covariateutils{
 				for(int k = 0; k < (*this)[i][j].size(); ++k){ //k is dinuc
 					int map_q = 0; //maximum a posteriori q
 					long double best_posterior = std::numeric_limits<long double>::lowest();
-					for(int possible = 0; possible < MAXQ+1; possible++){
+					for(int possible = 0; possible < KBBQ_MAXQ+1; possible++){
 						int diff = std::abs(prior[i][j] - possible);
 						long double prior_prob = NormalPrior::get_normal_prior(diff);
 						long double p = recalibrateutils::q_to_p(possible);
