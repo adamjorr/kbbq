@@ -59,7 +59,7 @@ namespace readutils{
 			// we just need something unique here.
 			rg_to_pu[this->rg] = rg; //when loaded from the header this is actually a PU 
 		}
-		this->second = bamrecord->core.flag & 0x80;
+		this->second = bamrecord->core.flag & BAM_FREAD2; // 0x80
 		this->errors.resize(bamrecord->core.l_qseq);
 	}
 	// if second is >1, that means infer.
