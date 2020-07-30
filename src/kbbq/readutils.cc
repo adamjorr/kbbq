@@ -14,7 +14,7 @@ namespace readutils{
 		this->name = bam_get_qname(bamrecord);
 		this->seq = bam_seq_str(bamrecord);
 		if(use_oq){
-			uint8_t* oqdata = bam_aux_get(bamrecord, "OQ"); // this will be null on error
+			const uint8_t* oqdata = bam_aux_get(bamrecord, "OQ"); // this will be null on error
 			//we should throw in that case
 			if(oqdata == NULL){
 				std::cerr << "Error: --use-oq was specified but unable to read OQ tag " << 
@@ -24,11 +24,11 @@ namespace readutils{
 				} else if(errno == EINVAL){
 					std::cerr << "Tag data is corrupt. Repair the tags and try again." << std::endl;
 				}
-				throw;
+				throw std::invalid_argument("Unable to read OQ tag.");
 			}
-			std::string oq(bam_aux2Z(oqdata));
-			std::transform(oq.begin(), oq.end(), std::back_inserter(this->qual),
-				[](char c) -> uint8_t {return c - 33;});
+			const std::string oq = bam_aux2Z(oqdata);
+			std::transform(oq.cbegin(), oq.cend(), std::back_inserter(this->qual),
+				[](const char& c) -> uint8_t {return c - 33;});
 		} else {
 			std::copy(bam_get_qual(bamrecord), bam_get_qual(bamrecord) + bamrecord->core.l_qseq,
 				std::back_inserter(this->qual));
@@ -52,7 +52,7 @@ namespace readutils{
 			} else if(errno == EINVAL){
 				std::cerr << "Tag data is corrupt. Repair the tags and try again." << std::endl;
 			}
-			throw;
+			throw std::invalid_argument("Unable to read RG tag.");;
 		}
 		this->rg = bam_aux2Z(bam_aux_get(bamrecord, "RG"));
 		if(rg_to_pu.count(this->rg) == 0){
