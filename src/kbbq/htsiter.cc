@@ -15,7 +15,14 @@ void BamFile::recalibrate(const std::vector<uint8_t>& qual){
 		std::transform(q, q + this->r->core.l_qseq, std::back_inserter(qstr),
 			[](uint8_t c) -> char {return c + 33;}); //qual value to actual str
 		//returns 0 on success, -1 on fail. We should consider throwing if it fails.
-		int r = bam_aux_update_str(this->r, "OQ", qstr.length(), qstr.c_str());
+		if(bam_aux_update_str(this->r, "OQ", qstr.length()+1, qstr.c_str()) != 0){
+			if(errno == ENOMEM){
+				std::cerr << "Insufficient memory to expand bam record." << std::endl;
+			} else if(errno == EINVAL){
+				std::cerr << "Tag data is corrupt. Repair the tags and try again." << std::endl;
+			}
+			throw std::invalid_argument("Unable to update OQ tag.");
+		}
 	}
 	if(bam_is_rev(this->r)){
 		std::reverse_copy(qual.begin(), qual.end(), q);
