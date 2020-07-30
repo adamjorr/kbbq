@@ -121,6 +121,9 @@ int main(int argc, char* argv[]){
 		}
 	}
 
+	std::cerr << "Use-oq: " << use_oq << std::endl;
+	std::cerr << "Set-oq: " << set_oq << std::endl;
+
 
 	long double sampler_desiredfpr = 0.000001; //Lighter uses .01
 	long double trusted_desiredfpr = 0.000000001; // and .0005
@@ -178,7 +181,7 @@ int main(int argc, char* argv[]){
 	if(coverage == 0){
 		std::cerr << "Estimating coverage." << std::endl;
 		uint64_t seqlen = 0;
-		file = std::move(open_file(filename, is_bam, set_oq, use_oq));
+		file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 		std::string seq("");
 		while((seq = file->next_str()) != ""){
 			seqlen += seq.length();
@@ -199,7 +202,7 @@ int main(int argc, char* argv[]){
 	}
 
 	long double alpha = 7.0l / (long double)coverage; // recommended by Lighter authors
-	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
+	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 
 	std::cerr << "Sampling kmers at rate " << alpha << std::endl;
 	recalibrateutils::kmer_cache_t subsampled_hashes;
@@ -276,7 +279,7 @@ int main(int argc, char* argv[]){
 	//get trusted kmers bf using subsampled bf
 	std::cerr << "Finding trusted kmers" << std::endl;
 
-	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
+	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 	recalibrateutils::kmer_cache_t trusted_hashes = 
 		recalibrateutils::find_trusted_kmers(file.get(), subsampled, thresholds, k);
 	recalibrateutils::add_kmers_to_bloom(trusted_hashes, trusted);
@@ -307,7 +310,7 @@ if(trustedlist != ""){
 
 	//use trusted kmers to find errors
 	std::cerr << "Finding errors" << std::endl;
-	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
+	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 	covariateutils::CCovariateData data = recalibrateutils::get_covariatedata(file.get(), trusted, k);
 
 	std::vector<std::string> rgvals(readutils::CReadData::rg_to_int.size(), "");
@@ -355,7 +358,7 @@ if(trustedlist != ""){
 	}
 
 	std::cerr << "Recalibrating file" << std::endl;
-	file = std::move(open_file(filename, is_bam, set_oq, use_oq));
+	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 	recalibrateutils::recalibrate_and_write(file.get(), dqs, "-");
 	return 0;
 }
