@@ -45,7 +45,7 @@ namespace readutils{
 			// hello?
 			CReadData(kseq::kseq_t* fastqrecord, std::string rg = "", int second = 2, std::string namedelimiter = "_");
 			std::string seq;
-			std::vector<int> qual;
+			std::vector<uint8_t> qual;
 			std::vector<bool> skips;
 			std::string name;
 			std::string rg;
@@ -63,7 +63,7 @@ namespace readutils{
 			static void load_rgs_from_bamfile(bam_hdr_t* header);
 			//fill errors attribute given trusted kmers
 			std::vector<bool> get_errors(const bloom::Bloom& trusted, int k, int minqual = 6, bool first_call = true);
-			std::vector<int> recalibrate(const covariateutils::dq_t& dqs, int minqual = 6) const;
+			std::vector<uint8_t> recalibrate(const covariateutils::dq_t& dqs, int minqual = 6) const;
 			CReadData substr(size_t pos = 0, size_t count = std::string::npos) const;
 
 	};

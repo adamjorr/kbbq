@@ -8,12 +8,12 @@ std::string BamFile::next_str(){return this->next() >= 0 ? readutils::bam_seq_st
 //
 readutils::CReadData BamFile::get(){return readutils::CReadData(this->r, use_oq);}
 //
-void BamFile::recalibrate(const std::vector<int>& qual){
-	char* q = (char *)bam_get_qual(this->r);
+void BamFile::recalibrate(const std::vector<uint8_t>& qual){
+	uint8_t* q = bam_get_qual(this->r);
 	if(set_oq){
-		std::string qstr(q, this->r->core.l_qseq);
-		std::transform(qstr.begin(), qstr.end(), qstr.begin(),
-			[](char c) -> char {return c + 33;}); //qual value to actual str
+		std::string qstr;
+		std::transform(q, q + this->r->core.l_qseq, std::back_inserter(qstr),
+			[](uint8_t c) -> char {return c + 33;}); //qual value to actual str
 		//returns 0 on success, -1 on fail. We should consider throwing if it fails.
 		int r = bam_aux_update_str(this->r, "OQ", qstr.length(), qstr.c_str());
 	}
@@ -45,7 +45,7 @@ readutils::CReadData FastqFile::get(){
 	return readutils::CReadData(this->r);
 }
 
-void FastqFile::recalibrate(const std::vector<int>& qual){
+void FastqFile::recalibrate(const std::vector<uint8_t>& qual){
 	for(int i = 0; i < this->r->qual.l; ++i){
 		this->r->qual.s[i] = (char)(qual[i]+33);
 	}

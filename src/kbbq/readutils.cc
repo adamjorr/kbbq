@@ -28,16 +28,17 @@ namespace readutils{
 			}
 			std::string oq(bam_aux2Z(oqdata));
 			std::transform(oq.begin(), oq.end(), std::back_inserter(this->qual),
-				[](char c) -> int {return c - 33;});
+				[](char c) -> uint8_t {return c - 33;});
 		} else {
-			this->qual.assign(bam_get_qual(bamrecord), bam_get_qual(bamrecord) + bamrecord->core.l_qseq);
+			std::copy(bam_get_qual(bamrecord), bam_get_qual(bamrecord) + bamrecord->core.l_qseq,
+				std::back_inserter(this->qual));
 		}
 		if(bam_is_rev(bamrecord)){
 			std::reverse(this->seq.begin(), this->seq.end());
 			//can't do reversing and complementing at the same time because of how transform
 			//works + the source/destination range overlap.
 			std::transform(this->seq.begin(), this->seq.end(), this->seq.begin(),
-				[](char c) -> char {return seq_nt16_str[seq_nt16_table[('0' + 3-seq_nt16_int[seq_nt16_table[c]])]];})
+				[](char c) -> char {return seq_nt16_str[seq_nt16_table[('0' + 3-seq_nt16_int[seq_nt16_table[c]])]];});
 			std::reverse(this->qual.begin(), this->qual.end());
 		}
 		this->skips.resize(bamrecord->core.l_qseq, 0);
@@ -570,11 +571,12 @@ namespace readutils{
 		return this->errors;
 	}
 
-	std::vector<int> CReadData::recalibrate(const covariateutils::dq_t& dqs, int minqual) const{
-		std::vector<int> recalibrated(this->qual);
+	std::vector<uint8_t> CReadData::recalibrate(const covariateutils::dq_t& dqs, int minqual) const{
+		//TODO this function uses a narrowing conversion which is unsafe
+		std::vector<uint8_t> recalibrated(this->qual);
 		int rg = this->get_rg_int();
 		for(int i = 0; i < this->seq.length(); ++i){
-			int q = this->qual[i];
+			uint8_t q = this->qual[i];
 			if(q >= minqual){
 				recalibrated[i] = dqs.meanq[rg] + dqs.rgdq[rg] + dqs.qscoredq[rg][q] +
 					dqs.cycledq[rg][q][this->second][i];
