@@ -324,7 +324,7 @@ if(trustedlist != ""){
 	std::unique_ptr<htsiter::HTSFile> fixedfile = std::move(open_file(fixedinput, is_bam, use_oq, set_oq));
 	while(file->next() >= 0 && fixedfile->next() >= 0){
 		readutils::CReadData read = file->get();
-		readutils::CReadData fixedread = file->get();
+		readutils::CReadData fixedread = fixedfile->get();
 		std::transform(read.seq.begin(), read.seq.end(), fixedread.seq.begin(),
 			read.errors.begin(), std::not_equal_to<char>{});
 		data.consume_read(read);
