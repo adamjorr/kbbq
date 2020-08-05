@@ -9,6 +9,7 @@
 #include <htslib/hfile.h>
 #include <getopt.h>
 #include <cassert>
+#include <functional>
 
 #ifndef NDEBUG
 #define KBBQ_USE_RAND_SAMPLER
@@ -57,6 +58,7 @@ struct option long_options[] = {
 	{"set-oq",no_argument,0,'s'}, //default: off
 	{"genomelen",required_argument,0,'g'}, //estimated for bam input, required for fastq input
 	{"coverage",required_argument,0,'c'}, //default: estimated
+	{"fixed",required_argument,0,'f'}, //default: none
 #ifndef NDEBUG
 	{"debug",required_argument,0,'d'},
 #endif
@@ -69,6 +71,7 @@ int main(int argc, char* argv[]){
 	uint coverage = 0; //if not given, will be estimated.
 	bool set_oq = false;
 	bool use_oq = false;
+	std::string fixedinput = "";
 
 	int opt = 0;
 	int opt_idx = 0;
@@ -76,7 +79,7 @@ int main(int argc, char* argv[]){
 	std::string kmerlist("");
 	std::string trustedlist("");
 #endif
-	while((opt = getopt_long(argc,argv,"k:usg:c:d:",long_options, &opt_idx)) != -1){
+	while((opt = getopt_long(argc,argv,"k:usg:c:f:d:",long_options, &opt_idx)) != -1){
 		switch(opt){
 			case 'k':
 				k = std::stoi(std::string(optarg));
@@ -96,6 +99,10 @@ int main(int argc, char* argv[]){
 			case 'c':
 				coverage = std::stoul(std::string(optarg));
 				break;
+			case 'f':
+				fixedinput = std::string(optarg);
+				break;
+
 #ifndef NDEBUG
 			case 'd': {
 				std::string optstr(optarg);
@@ -121,12 +128,8 @@ int main(int argc, char* argv[]){
 		}
 	}
 
-	std::cerr << "Use-oq: " << use_oq << std::endl;
-	std::cerr << "Set-oq: " << set_oq << std::endl;
-
-
-	long double sampler_desiredfpr = 0.000001; //Lighter uses .01
-	long double trusted_desiredfpr = 0.000000001; // and .0005
+	long double sampler_desiredfpr = 0.01; //Lighter uses .01
+	long double trusted_desiredfpr = 0.0005; // and .0005
 
 	//see if we have a bam
 	htsFormat fmt;
@@ -148,6 +151,10 @@ int main(int argc, char* argv[]){
 		hclose_abruptly(fp);
 		return 1;
 	}
+	std::unique_ptr<htsiter::HTSFile> file;
+	covariateutils::CCovariateData data;
+
+if(fixedinput == ""){ //no fixed input provided
 
 	if(genomelen == 0){
 		if(is_bam){
@@ -176,7 +183,6 @@ int main(int argc, char* argv[]){
 		}
 	}
 	
-	std::unique_ptr<htsiter::HTSFile> file;
 
 	if(coverage == 0){
 		std::cerr << "Estimating coverage." << std::endl;
@@ -311,7 +317,21 @@ if(trustedlist != ""){
 	//use trusted kmers to find errors
 	std::cerr << "Finding errors" << std::endl;
 	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
-	covariateutils::CCovariateData data = recalibrateutils::get_covariatedata(file.get(), trusted, k);
+	data = recalibrateutils::get_covariatedata(file.get(), trusted, k);
+} else { //use fixedfile to find errors
+	std::cerr << "Using fixed file to find errors." << std::endl;
+	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
+	std::unique_ptr<htsiter::HTSFile> fixedfile = std::move(open_file(fixedinput, is_bam, use_oq, set_oq));
+	while(file->next() >= 0 && fixedfile->next() >= 0){
+		readutils::CReadData read = file->get();
+		readutils::CReadData fixedread = file->get();
+		std::transform(read.seq.begin(), read.seq.end(), fixedread.seq.begin(),
+			read.errors.begin(), std::not_equal_to<char>);
+	}
+	data.consume_read(read);
+}
+
+
 
 	std::vector<std::string> rgvals(readutils::CReadData::rg_to_int.size(), "");
 	for(auto i : readutils::CReadData::rg_to_int){
@@ -362,5 +382,3 @@ if(trustedlist != ""){
 	recalibrateutils::recalibrate_and_write(file.get(), dqs, "-");
 	return 0;
 }
-
-
