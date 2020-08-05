@@ -326,9 +326,9 @@ if(trustedlist != ""){
 		readutils::CReadData read = file->get();
 		readutils::CReadData fixedread = file->get();
 		std::transform(read.seq.begin(), read.seq.end(), fixedread.seq.begin(),
-			read.errors.begin(), std::not_equal_to<char>);
+			read.errors.begin(), std::not_equal_to<char>{});
+		data.consume_read(read);
 	}
-	data.consume_read(read);
 }
 
 
