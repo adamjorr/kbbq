@@ -23,6 +23,10 @@
 
 static_assert(HTS_VERSION >= 101000, "Your version of htslib is out of date. KBBQ requires version >= 1.10.");
 
+#ifndef NDEBUG
+#define KBBQ_USE_RAND_SAMPLER
+#endif
+
 //fwd declare
 namespace readutils{
 	class CReadData;
