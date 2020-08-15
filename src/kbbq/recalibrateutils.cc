@@ -9,8 +9,7 @@ kmer_cache_t subsample_kmers(KmerSubsampler& s, uint64_t chunksize){
 	uint64_t counted = 0;
 	kmer_cache_t ret;
 	ret.fill(std::vector<uint64_t>());
-	//the order here matters since we don't want to advance the iterator if we're chunked out
-	for(bloom::Kmer kmer = s.next(); counted++ < chunksize && s.not_eof; kmer = s.next()){
+	for(bloom::Kmer kmer = s.next(); s.not_eof && ++counted < chunksize; kmer = s.next()){
 		if(kmer.valid()){
 			ret[kmer.prefix()].push_back(kmer.get());
 		}
@@ -61,7 +60,7 @@ kmer_cache_t find_trusted_kmers(HTSFile* file, const bloom::Bloom& sampled, std:
 covariateutils::CCovariateData get_covariatedata(HTSFile* file, const bloom::Bloom& trusted, int k){
 	covariateutils::CCovariateData data;
 #ifndef NDEBUG
-	std::ifstream errorsin("../../lighter-debug/corrected.txt");
+	std::ifstream errorsin("~/bin/adamjorr-Lighter/corrected.txt");
 	int linenum = 0;
 	std::string line = "";
 #endif

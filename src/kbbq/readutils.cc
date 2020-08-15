@@ -507,7 +507,7 @@ namespace readutils{
 #ifndef NDEBUG
 				std::cerr << "Occount: " << occount << " Threshold: " << threshold;
 				std::cerr << " Seq: " << original_seq[i] << " (" << seq_nt16_int[seq_nt16_table[original_seq[i]]];
-				std::cerr << " )" << " Q: " << this->qual[i] <<std::endl;
+				std::cerr << ")" << " Q: " << +this->qual[i] << std::endl;
 #endif
 				if(occount > threshold && this->errors[i]){
 					overcorrected_idx.push_back(i);
