@@ -60,7 +60,7 @@ kmer_cache_t find_trusted_kmers(HTSFile* file, const bloom::Bloom& sampled, std:
 covariateutils::CCovariateData get_covariatedata(HTSFile* file, const bloom::Bloom& trusted, int k){
 	covariateutils::CCovariateData data;
 #ifndef NDEBUG
-	std::ifstream errorsin("~/bin/adamjorr-Lighter/corrected.txt");
+	std::ifstream errorsin("../../adamjorr-Lighter/corrected.txt");
 	int linenum = 0;
 	std::string line = "";
 #endif
