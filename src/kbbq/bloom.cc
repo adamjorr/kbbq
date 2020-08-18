@@ -211,14 +211,16 @@ namespace bloom
 			bloom::Kmer new_kmer = kmer;
 			new_kmer.push_back(c);
 			//if this fix works, we don't need to adjust the anchor if it fixes all remaining kmers.
-			for(size_t i = 0;
-			trusted.query(new_kmer) && modified_idx + i < seq.length() && i < k;
-			++i){ //668188
+			//modified_idx + 1 to modified_idx + 1 + k - 1
+			for(size_t i = 0; i <= k; ++i){ //668188
 #ifndef NDEBUG
 				std::cerr << "i: " << i << " anchor + 2 + i: " << anchor + 2 + i << " len: " << seq.length() << std::endl;
 #endif
+				if(!trusted.query(new_kmer)){
+					break;
+				}
 				//if we get to the end of the altered kmers and they're all fixed, the anchor is fine.
-				if(modified_idx + i == seq.length()-1 || i == k - 1){
+				if(modified_idx + i == seq.length()-1 || i == k){
 #ifndef NDEBUG
 					std::cerr << "First Try!" << std::endl;
 #endif
