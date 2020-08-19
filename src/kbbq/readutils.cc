@@ -306,8 +306,8 @@ namespace readutils{
 						std::cerr << "next_untrusted_idx: " << next_untrusted_idx << std::endl;
 						std::cerr << "largest_possible_idx (to): " << largest_possible_idx << std::endl;
 						std::cerr << "largest_possible_idx-i+1: " << largest_possible_idx-i+1 << std::endl;
-#endif
-						if(next_untrusted_idx < largest_possible_idx || largest_possible_idx - i + 1 < k){
+#endif					//20629746
+						if(next_untrusted_idx <= largest_possible_idx || largest_possible_idx - i + 1 < k){
 							// size_t trimstart = next_untrusted_idx;
 							bad_suffix = i; //readlength - trimstart
 #ifndef NDEBUG
@@ -392,7 +392,7 @@ namespace readutils{
 						//Line num: 21537
 						// if(next_untrusted_idx - 1 <= std::max(start + (size_t)2*k - 1, revcomped.length())){
 						size_t largest_possible_idx = std::min(start + (size_t)2*k - 1, revcomped.length()-1);
-						if(next_untrusted_idx < largest_possible_idx || largest_possible_idx - j + 1 < k){ //595573
+						if(next_untrusted_idx <= largest_possible_idx || largest_possible_idx - j + 1 < k){ //595573
 							//if there's a tie and we haven't gone the max number of kmers, end correction
 							bad_prefix = i;
 							break;
