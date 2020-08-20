@@ -296,18 +296,20 @@ namespace readutils{
 				if(next_untrusted_idx > i){
 					if(fix.size() > 1){
 						// multiple = true; //we take care of this in function
+						// i = index of erroneous base
 						//to = ( i + kmerLength - 1 < readLength ) ? i + kmerLength - 1 : readLength - 1 ;
-						//maxto = largest index the fix goes to; next_untrusted_idx
+						//to = inclusive biggest index the fix can possibly go to. (= largest_possible_idx)
+						//maxto = largest index the fix actually goes to INCLUSIVE; next_untrusted_idx-1
 						//if( maxTo <= to || to - i + 1 < kmerLength ) ...
-						//if(next_untrusted_idx <= )
+						//i + k
 						multiple = true;
-						size_t largest_possible_idx = std::min(start + (size_t)2*k - 1, this->seq.length()-1);
+						size_t largest_possible_idx = std::min(i + k - 1, this->seq.length()-1);
 #ifndef NDEBUG
 						std::cerr << "next_untrusted_idx: " << next_untrusted_idx << std::endl;
 						std::cerr << "largest_possible_idx (to): " << largest_possible_idx << std::endl;
 						std::cerr << "largest_possible_idx-i+1: " << largest_possible_idx-i+1 << std::endl;
 #endif					//20629746
-						if(next_untrusted_idx <= largest_possible_idx || largest_possible_idx - i + 1 < k){
+						if(next_untrusted_idx-1 <= largest_possible_idx || largest_possible_idx - i + 1 < k){
 							// size_t trimstart = next_untrusted_idx;
 							bad_suffix = i; //readlength - trimstart
 #ifndef NDEBUG
@@ -391,8 +393,8 @@ namespace readutils{
 						//( minTo >= to || i - to + 1 < kmerLength )
 						//Line num: 21537
 						// if(next_untrusted_idx - 1 <= std::max(start + (size_t)2*k - 1, revcomped.length())){
-						size_t largest_possible_idx = std::min(start + (size_t)2*k - 1, revcomped.length()-1);
-						if(next_untrusted_idx <= largest_possible_idx || largest_possible_idx - j + 1 < k){ //595573
+						size_t largest_possible_idx = std::min(j + (size_t)k - 1, revcomped.length()-1);
+						if(next_untrusted_idx-1 <= largest_possible_idx || largest_possible_idx - j + 1 < k){ //595573
 							//if there's a tie and we haven't gone the max number of kmers, end correction
 							bad_prefix = i;
 							break;
