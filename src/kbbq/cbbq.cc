@@ -59,6 +59,7 @@ struct option long_options[] = {
 	{"genomelen",required_argument,0,'g'}, //estimated for bam input, required for fastq input
 	{"coverage",required_argument,0,'c'}, //default: estimated
 	{"fixed",required_argument,0,'f'}, //default: none
+	{"alpha",required_argument,0,'a'}, //default: 7 / coverage
 #ifndef NDEBUG
 	{"debug",required_argument,0,'d'},
 #endif
@@ -67,6 +68,7 @@ struct option long_options[] = {
 
 int main(int argc, char* argv[]){
 	int k = 32;
+	long double alpha = 0;
 	uint64_t genomelen = 0; //est w/ index with bam, w/ fq estimate w/ coverage
 	uint coverage = 0; //if not given, will be estimated.
 	bool set_oq = false;
@@ -79,7 +81,7 @@ int main(int argc, char* argv[]){
 	std::string kmerlist("");
 	std::string trustedlist("");
 #endif
-	while((opt = getopt_long(argc,argv,"k:usg:c:f:d:",long_options, &opt_idx)) != -1){
+	while((opt = getopt_long(argc,argv,"k:usg:c:f:a:d:",long_options, &opt_idx)) != -1){
 		switch(opt){
 			case 'k':
 				k = std::stoi(std::string(optarg));
@@ -102,7 +104,9 @@ int main(int argc, char* argv[]){
 			case 'f':
 				fixedinput = std::string(optarg);
 				break;
-
+			case 'a':
+				alpha = std::stold(std::string(optarg));
+				break;
 #ifndef NDEBUG
 			case 'd': {
 				std::string optstr(optarg);
@@ -183,34 +187,34 @@ if(fixedinput == ""){ //no fixed input provided
 		}
 	}
 	
-
-	if(coverage == 0){
-		std::cerr << "Estimating coverage." << std::endl;
-		uint64_t seqlen = 0;
-		file = std::move(open_file(filename, is_bam, use_oq, set_oq));
-		std::string seq("");
-		while((seq = file->next_str()) != ""){
-			seqlen += seq.length();
-		}
-		if (seqlen == 0){
-			std::cerr << "Error: total sequence length in file " << filename <<
-				" is 0. Check that the file isn't empty." << std::endl;
-			return 1;
-		}
-		std::cerr << "Total Sequence length: " << seqlen << std::endl;
-		std::cerr << "Genome length: " << genomelen << std::endl;
-		coverage = seqlen/genomelen;
-		std::cerr << "Estimated coverage: " << coverage << std::endl;
+	//alpha not provided, coverage not provided
+	if(alpha == 0){
+		std::cerr << "Estimating alpha." << std::endl;
 		if(coverage == 0){
-			std::cerr << "Error: estimated coverage is 0." << std::endl;
-			return 1;
+			std::cerr << "Estimating coverage." << std::endl;
+			uint64_t seqlen = 0;
+			file = std::move(open_file(filename, is_bam, use_oq, set_oq));
+			std::string seq("");
+			while((seq = file->next_str()) != ""){
+				seqlen += seq.length();
+			}
+			if (seqlen == 0){
+				std::cerr << "Error: total sequence length in file " << filename <<
+					" is 0. Check that the file isn't empty." << std::endl;
+				return 1;
+			}
+			std::cerr << "Total Sequence length: " << seqlen << std::endl;
+			std::cerr << "Genome length: " << genomelen << std::endl;
+			coverage = seqlen/genomelen;
+			std::cerr << "Estimated coverage: " << coverage << std::endl;
+			if(coverage == 0){
+				std::cerr << "Error: estimated coverage is 0." << std::endl;
+				return 1;
+			}
 		}
+		alpha = 7.0l / (long double)coverage; // recommended by Lighter authors		
 	}
 
-	long double alpha = 7.0l / (long double)coverage; // recommended by Lighter authors
-#ifndef NDEBUG
-	alpha = .15;
-#endif
 	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 
 	std::cerr << "Sampling kmers at rate " << alpha << std::endl;
