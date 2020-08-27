@@ -50,9 +50,9 @@ public:
 class BamFile: public HTSFile{
 public:
 	samFile *sf;
-	hts_idx_t *idx;
+	// hts_idx_t *idx;
 	sam_hdr_t *h;
-	hts_itr_t *itr;
+	// hts_itr_t *itr;
 	bam1_t *r;
 	samFile *of;
 	bool use_oq;
@@ -61,21 +61,24 @@ public:
 		use_oq(use_oq), set_oq(set_oq){
 		r = bam_init1();
 		sf = sam_open(filename.c_str(), "r");
-	   	idx = sam_index_load(sf, filename.c_str());
 	    h = sam_hdr_read(sf);
-	    itr = sam_itr_queryi(idx, HTS_IDX_START, 0, 0); //iterate over whole file;
-	    of = NULL;
+	    //TODO: support iteration with index?
+	    // idx = sam_index_load(sf, filename.c_str());
+	   	//TODO: throw when index can't be found
+	    // itr = sam_itr_queryi(idx, HTS_IDX_START, 0, 0); //iterate over whole file;
+	    of = NULL; //this can be opened later with open_out
 	}
 	~BamFile(){
 		if(r != NULL){bam_destroy1(r);}
-		if(itr != NULL){sam_itr_destroy(itr);}
+		// if(itr != NULL){sam_itr_destroy(itr);}
 		if(sf != NULL){sam_close(sf);}
 		if(of != NULL){sam_close(of);}
 		if(h != NULL){sam_hdr_destroy(h);}
-		if(idx != NULL){hts_idx_destroy(idx);}
+		// if(idx != NULL){hts_idx_destroy(idx);}
 	}
 
 	// to use: while (ret = BamFile.next() >= 0){//do something with this->r}
+	// >= 0 on success, -1 on EOF, <-1 on error
 	int next();
 	// return next read sequence as a string. if there are no more, return the empty string.
 	std::string next_str();

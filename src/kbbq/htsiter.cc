@@ -2,7 +2,7 @@
 
 namespace htsiter{
 
-int BamFile::next(){return sam_itr_next(sf, itr, r);}
+int BamFile::next(){return sam_read1(sf, h, r);}//return sam_itr_next(sf, itr, r);
 	// return next read as a string. if there are no more, return the empty string.
 std::string BamFile::next_str(){return this->next() >= 0 ? readutils::bam_seq_str(r) : "";}
 //
