@@ -289,7 +289,7 @@ public:
          bit_table_ = new cell_type[static_cast<std::size_t>(raw_table_size_)];
          std::copy(f.bit_table_,f.bit_table_ + raw_table_size_,bit_table_);
          salt_ = f.salt_;
-         std::copy(std::begin(f.patterns), std::end(f.patterns), patterns);
+         std::copy(std::begin(f.patterns), std::end(f.patterns), std::begin(patterns));
          std::cerr << "bloom_filter operator= called!" << std::endl;
       }
       return *this;
