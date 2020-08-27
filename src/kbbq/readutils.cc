@@ -34,11 +34,7 @@ namespace readutils{
 				std::back_inserter(this->qual));
 		}
 		if(bam_is_rev(bamrecord)){
-			std::reverse(this->seq.begin(), this->seq.end());
-			//can't do reversing and complementing at the same time because of how transform
-			//works + the source/destination range overlap.
-			std::transform(this->seq.begin(), this->seq.end(), this->seq.begin(),
-				[](char c) -> char {return seq_nt16_str[seq_nt16_table[('0' + 3-seq_nt16_int[seq_nt16_table[c]])]];});
+			//seq is already in fwd orientation
 			std::reverse(this->qual.begin(), this->qual.end());
 		}
 		this->skips.resize(bamrecord->core.l_qseq, 0);

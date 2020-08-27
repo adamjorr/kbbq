@@ -26,12 +26,17 @@ namespace readutils{
 
 	// int correction_len(const bloom::bloomary_t& t, int k);
 
-	//get fwd-orientation read string
+	//get read sequence as a string in the forward orientation
 	inline std::string bam_seq_str(bam1_t* bamrecord){
 		std::string seq;
 		unsigned char* s = bam_get_seq(bamrecord);
-		for(int i = 0; i < bamrecord->core.l_qseq; ++i){
-			seq.push_back(bam_is_rev(bamrecord) ? seq_nt16_str[complement[bam_seqi(s, i)]] : seq_nt16_str[bam_seqi(s, i)]);
+		for(size_t i = 0; i < bamrecord->core.l_qseq; ++i){
+			seq.push_back(bam_is_rev(bamrecord) ?
+				seq_nt16_str[seq_nt16_table['0' + 3-seq_nt16_int[bam_seqi(s, i)]]] :
+				seq_nt16_str[bam_seqi(s, i)]);
+		}
+		if(bam_is_rev(bamrecord)){
+			std::reverse(seq.begin(), seq.end());
 		}
 		return seq;
 	}
