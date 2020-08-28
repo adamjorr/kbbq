@@ -387,9 +387,9 @@ if(trustedlist != ""){
 			if(data.qcov[i][j][1] != 0){
 				for(size_t k = 0; k < dqs.cycledq[i][j].size(); ++k){
 					for(size_t l = 0; l < dqs.cycledq[i][j][k].size(); ++l){
-						std::cerr << rgvals[i] << ", " << "q = " << j << ", cycle = " << k ? -(l+1) : l+1 << ": " << dqs.cycledq[i][j][k][l] << " (" <<
+						std::cerr << rgvals[i] << ", " << "q = " << j << ", cycle = " << (k ? -(l+1) : l+1) << ": " << dqs.cycledq[i][j][k][l] << " (" <<
 							dqs.meanq[i] + dqs.rgdq[i] + dqs.qscoredq[i][j] + dqs.cycledq[i][j][k][l] << ") " << 
-							data.cycov[i][j][k][l][1] << " " << data.qcov[i][j][k][l][0] << std::endl;
+							data.cycov[i][j][k][l][1] << " " << data.cycov[i][j][k][l][0] << std::endl;
 					}
 				}
 			}
@@ -400,9 +400,9 @@ if(trustedlist != ""){
 		for(int j = 0; j < dqs.dinucdq[i].size(); ++j){
 			if(data.qcov[i][j][1] != 0){
 				for(size_t k = 0; k < dqs.dinucdq[i][j].size(); ++k){
-					std::cerr << rgvals[i] << ", " << "q = " << j << ", dinuc = " << seq_nt16_str[seq_nt16_table['0' + (k >> 2)]] << seq_nt16_str[seq_nt16_table['0' + (k & 3)]] << ": " << dqs.cycledq[i][j][k][l] << " (" <<
-						dqs.meanq[i] + dqs.rgdq[i] + dqs.qscoredq[i][j] + dqs.cycledq[i][j][k][l] << ") " << 
-						data.cycov[i][j][k][l][1] << " " << data.qcov[i][j][k][l][0] << std::endl;
+					std::cerr << rgvals[i] << ", " << "q = " << j << ", dinuc = " << seq_nt16_str[seq_nt16_table['0' + (k >> 2)]] << seq_nt16_str[seq_nt16_table['0' + (k & 3)]] << ": " << dqs.dinucdq[i][j][k] << " (" <<
+						dqs.meanq[i] + dqs.rgdq[i] + dqs.qscoredq[i][j] + dqs.dinucdq[i][j][k] << ") " << 
+						data.dicov[i][j][k][1] << " " << data.dicov[i][j][k][0] << std::endl;
 				}
 			}
 		}
