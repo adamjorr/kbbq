@@ -270,10 +270,6 @@ if(fixedinput == ""){ //no fixed input provided
 	long double p = bloom::calculate_phit(subsampled, alpha);
 	std::vector<int> thresholds = covariateutils::calculate_thresholds(k, p);
 #ifndef NDEBUG
-	// std::vector<int> lighter_thresholds = {0, 1, 2, 3, 3, 4, 5, 5, 6, 6, 6,
-	// 	7, 7, 8, 8, 9, 9, 9, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 14, 14, 14, 15};
-	//std::vector<int> lighter_thresholds = {0, 1, 2, 3, 4, 5, 5, 6, 6, 7, 8, 8, 9, 9, 10,
-	//	10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19};
 	std::vector<int> lighter_thresholds = {0, 1, 2, 3, 4, 4, 5, 5, 6, 6,
 		7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 12, 13, 13, 14, 14, 15, 15, 15, 16, 16, 17};
 
@@ -371,18 +367,43 @@ if(trustedlist != ""){
 
 	std::cerr << "dqs:\n" << "meanq: ";
 	print_vec<int>(dqs.meanq);
-	std::cerr << "rgdq:" << std::endl;
+	std::cerr << "\nrgdq:" << std::endl;
 	for(int i = 0; i < dqs.rgdq.size(); ++i){
 		std::cerr << rgvals[i] << ": " << dqs.rgdq[i] << " (" << dqs.meanq[i] + dqs.rgdq[i] << ")" << std::endl;
 	}
 	std::cerr << "qscoredq:" << std::endl;
-	int i = 0;
 	for(int i = 0; i < dqs.qscoredq.size(); ++i){
 		for(int j = 0; j < dqs.qscoredq[i].size(); ++j){
 			if(data.qcov[i][j][1] != 0){
 				std::cerr << rgvals[i] << ", " << "q = " << j << ": " << dqs.qscoredq[i][j] << " (" <<
 					dqs.meanq[i] + dqs.rgdq[i] + dqs.qscoredq[i][j] << ") " << 
 					data.qcov[i][j][1] << " " << data.qcov[i][j][0] << std::endl;
+			}
+		}
+	}
+	std::cerr << "cycledq:" << std::endl;
+	for(int i = 0; i < dqs.cycledq.size(); ++i){
+		for(int j = 0; j < dqs.cycledq[i].size(); ++j){
+			if(data.qcov[i][j][1] != 0){
+				for(size_t k = 0; k < dqs.cycledq[i][j].size(); ++k){
+					for(size_t l = 0; l < dqs.cycledq[i][j][k].size(); ++l){
+						std::cerr << rgvals[i] << ", " << "q = " << j << ", cycle = " << k ? -(l+1) : l+1 << ": " << dqs.cycledq[i][j][k][l] << " (" <<
+							dqs.meanq[i] + dqs.rgdq[i] + dqs.qscoredq[i][j] + dqs.cycledq[i][j][k][l] << ") " << 
+							data.cycov[i][j][k][l][1] << " " << data.qcov[i][j][k][l][0] << std::endl;
+					}
+				}
+			}
+		}
+	}
+	std::cerr << "dinucdq:" << std::endl;
+	for(int i = 0; i < dqs.dinucdq.size(); ++i){
+		for(int j = 0; j < dqs.dinucdq[i].size(); ++j){
+			if(data.qcov[i][j][1] != 0){
+				for(size_t k = 0; k < dqs.dinucdq[i][j].size(); ++k){
+					std::cerr << rgvals[i] << ", " << "q = " << j << ", dinuc = " << seq_nt16_str[seq_nt16_table['0' + (k >> 2)]] << seq_nt16_str[seq_nt16_table['0' + (k & 3)]] << ": " << dqs.cycledq[i][j][k][l] << " (" <<
+						dqs.meanq[i] + dqs.rgdq[i] + dqs.qscoredq[i][j] + dqs.cycledq[i][j][k][l] << ") " << 
+						data.cycov[i][j][k][l][1] << " " << data.qcov[i][j][k][l][0] << std::endl;
+				}
 			}
 		}
 	}
