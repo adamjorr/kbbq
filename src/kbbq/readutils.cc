@@ -582,7 +582,7 @@ namespace readutils{
 					int first = seq_nt16_int[seq_nt16_table[this->seq[i-1]]];
 					int second = seq_nt16_int[seq_nt16_table[this->seq[i]]];
 					if(first < 4 && second < 4){
-						int8_t dinuc = covariateutils::dinuc_to_int(first, second);
+						int8_t dinuc = 15 & ((first << 2) | second); //1111 & (xx00|00xx)
 						recalibrated[i] += dqs.dinucdq[rg][q][dinuc];
 					}
 				}
