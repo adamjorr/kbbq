@@ -570,8 +570,7 @@ namespace readutils{
 	}
 
 	std::vector<uint8_t> CReadData::recalibrate(const covariateutils::dq_t& dqs, int minqual) const{
-		//TODO this function uses a narrowing conversion which is unsafe
-		std::vector<uint8_t> recalibrated(this->qual);
+		std::vector<int> recalibrated(this->qual);
 		int rg = this->get_rg_int();
 		for(int i = 0; i < this->seq.length(); ++i){
 			uint8_t q = this->qual[i];
@@ -588,6 +587,9 @@ namespace readutils{
 				}
 			}
 		}
+		std::vector<uint8_t> ret;
+		std::transform(recalibrated.begin(), recalibrated.end(), std::back_inserter(ret),
+			[](int q)->uint8_t {return std::clamp(q, 0, KBBQ_MAXQ);});
 		return recalibrated;
 	}
 
