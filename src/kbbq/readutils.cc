@@ -590,7 +590,7 @@ namespace readutils{
 		std::vector<uint8_t> ret;
 		std::transform(recalibrated.begin(), recalibrated.end(), std::back_inserter(ret),
 			[](int q)->uint8_t {return std::clamp(q, 0, KBBQ_MAXQ);});
-		return recalibrated;
+		return ret;
 	}
 
 	CReadData CReadData::substr(size_t pos, size_t count) const{
