@@ -570,7 +570,8 @@ namespace readutils{
 	}
 
 	std::vector<uint8_t> CReadData::recalibrate(const covariateutils::dq_t& dqs, int minqual) const{
-		std::vector<int> recalibrated(this->qual);
+		std::vector<int> recalibrated;
+		std::copy(this->qual.begin(), this->qual.end(), std::back_inserter(recalibrated));
 		int rg = this->get_rg_int();
 		for(int i = 0; i < this->seq.length(); ++i){
 			uint8_t q = this->qual[i];
@@ -589,7 +590,7 @@ namespace readutils{
 		}
 		std::vector<uint8_t> ret;
 		std::transform(recalibrated.begin(), recalibrated.end(), std::back_inserter(ret),
-			[](int q)->uint8_t {return std::clamp(q, 0, KBBQ_MAXQ);});
+			[](int q)->uint8_t {return q < 0 ? 0 : KBBQ_MAXQ < q ? KBBQ_MAXQ : q;}); //std::clamp in c++17
 		return ret;
 	}
 
