@@ -77,8 +77,8 @@ public:
 	template <typename T>
 	inline void insert(const T& t){bloom.insert(t);}
 	inline bool query(const Kmer& kmer) const {return (kmer.valid() && bloom.contains(kmer.get()));}
-	// inline double fprate() const {return bloom.effective_fpp();}
-	inline double fprate() const {return bloom.GetActualFP();}
+	inline double fprate() const {return bloom.effective_fpp();}
+	// inline double fprate() const {return bloom.GetActualFP();}
 };
 
 // typedef std::array<Bloom,(1<<PREFIXBITS)> bloomary_t;

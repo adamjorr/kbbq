@@ -8,12 +8,17 @@ namespace bloom
 {
 
 	Bloom::Bloom(unsigned long long int projected_element_count, double fpr,
-	unsigned long long int seed):
-		params(projected_element_count, fpr, seed), bloom(params){
+	unsigned long long int seed): params(){
+		// params(projected_element_count, fpr, seed), bloom(params){
+		params.projected_element_count = projected_element_count;
+		params.false_positive_probability = fpr;
+		params.random_seed = seed;
 		if(!params){
 			throw std::invalid_argument("Error: Invalid bloom filter parameters. \
 				Adjust parameters and try again.");
 		}
+		params.compute_optimal_parameters();
+		bloom = bloom_filter(params);
 	}
 
 	Bloom::~Bloom(){}
