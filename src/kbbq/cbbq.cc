@@ -215,6 +215,10 @@ if(fixedinput == ""){ //no fixed input provided
 		alpha = 7.0l / (long double)coverage; // recommended by Lighter authors		
 	}
 
+	if(coverage == 0){ //coverage hasn't been estimated but alpha is given
+		coverage = 7.0l/alpha;
+	}
+
 	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 
 	std::cerr << "Sampling kmers at rate " << alpha << std::endl;
