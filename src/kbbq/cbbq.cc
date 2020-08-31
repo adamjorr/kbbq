@@ -220,8 +220,11 @@ if(fixedinput == ""){ //no fixed input provided
 	std::cerr << "Sampling kmers at rate " << alpha << std::endl;
 	recalibrateutils::kmer_cache_t subsampled_hashes;
 
-	bloom::Bloom subsampled(genomelen*1.5, sampler_desiredfpr);
-	bloom::Bloom trusted(genomelen*1.5, trusted_desiredfpr);
+	//in the worst case, every kmer is unique, so we have genomelen * coverage kmers
+	//then we will sample proportion alpha of those.
+	unsigned long long int approx_kmers = genomelen*coverage*alpha;
+	bloom::Bloom subsampled(approx_kmers, sampler_desiredfpr); //lighter uses 1.5 * genomelen
+	bloom::Bloom trusted(approx_kmers, trusted_desiredfpr);
 
 	//sample kmers here.
 #ifdef KBBQ_USE_RAND_SAMPLER
