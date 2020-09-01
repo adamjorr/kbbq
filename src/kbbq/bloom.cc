@@ -18,7 +18,7 @@ namespace bloom
 				Adjust parameters and try again.");
 		}
 		params.compute_optimal_parameters();
-		bloom = bloom_filter(params);
+		bloom = blocked_bloom_filter(params);
 	}
 
 	Bloom::~Bloom(){}

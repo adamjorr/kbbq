@@ -17,6 +17,97 @@
 
 namespace bloom{
 
+class blocked_bloom_filter: public bloom_filter
+{
+protected:
+	typedef std::unique_ptr<unsigned char[], std::function<void(unsigned char*)>> table_type;
+
+public:
+	static const size_t block_size = 512; //512 bits = 64 bytes
+	table_type bit_table_;
+	//TODO: ensure table size is a multiple of block_size
+	blocked_bloom_filter(): bloom_filter(){}
+	blocked_bloom_filter(const bloom_parameters& p){
+		projected_element_count_ = p.projected_element_count;
+     	inserted_element_count_ = 0;
+     	random_seed_ = (p.random_seed * 0xA5A5A5A5) + 1 ;
+     	desired_false_positive_probability_ = p.false_positive_probability;
+    	salt_count_ = std::max(p.optimal_parameters.number_of_hashes, 2u);
+		table_size_ = p.optimal_parameters.table_size;
+		//ensure table fits a full block
+		table_size_ += (table_size_ % block_size) != 0 ? block_size - (table_size_ % block_size) : 0;
+		generate_unique_salt();
+		void* ptr = 0;
+		int ret = posix_memalign(&ptr, block_size, table_size_ / bits_per_char);
+		if(ret != 0){
+			throw std::bad_alloc();
+		}
+		bit_table_ = table_type(static_cast<unsigned char*>(ptr),
+			[](unsigned char* x){free(x);});
+		std::fill(&bit_table_[0], &bit_table_[0] + table_size_, static_cast<unsigned char>(0));
+	}
+
+	inline virtual void insert(const unsigned char* key_begin, const size_t& length){
+		size_t bit_index = 0;
+		size_t bit = 0;
+		size_t block_index = hash_ap(key_begin, length, salt_[0]) % (table_size_ / block_size);
+		size_t block = block_index * block_size / bits_per_char; //index in table with first byte of block
+		for(size_t i = 1; i < salt_.size(); ++i){
+			compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
+			bit_table_[block + bit_index / bits_per_char] |= bit_mask[bit];
+		}
+		++inserted_element_count_;
+	}
+	template <typename T>
+	inline void insert(const T& t){
+		insert(reinterpret_cast<const unsigned char*>(&t), sizeof(T));
+	}
+
+	inline virtual bool contains(const unsigned char* key_begin, const std::size_t length) const {
+		size_t bit_index = 0;
+		size_t bit = 0;
+		size_t block_number = hash_ap(key_begin, length, salt_[0]) % (table_size_ / block_size);
+		size_t block = block_number * block_size / bits_per_char; //index in table with first byte of block
+		for(size_t i = 1; i < salt_.size(); ++i){
+			compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
+			if(bit_table_[block + bit_index / bits_per_char] != bit_mask[bit]){
+				return false;
+			}
+		}
+		return true;
+	}
+
+	template <typename T>
+	inline bool contains(const T& t) const {
+		return contains(reinterpret_cast<const unsigned char*>(&t),static_cast<std::size_t>(sizeof(T)));
+	}
+
+	inline double effective_fpp() const {
+		long double c = size() / element_count() ;
+		long double lambda = block_size / c;
+		long double fpp = 0;
+		for(int i = 0; i < 3 * lambda; ++i){ //var = lambda, so 3*lambda should include most anything
+			long double k = i;
+			long double p_block = std::pow(lambda, k) * std::exp(-lambda) / std::tgammal(k+1);
+			long double fpr_inner = std::pow(1.0 - std::exp(-1.0 * salt_.size() * i / block_size), 1.0 * salt_.size());
+			fpp += p_block * fpr_inner;
+		}
+		return fpp;
+	}
+
+protected:
+	inline virtual void compute_indices(const bloom_type& hash, std::size_t& bit_index, std::size_t& bit) const {
+		bit_index = hash % block_size; //which bit in the block?
+      	bit       = bit_index % bits_per_char; // 
+	}
+};
+
+
+
+
+
+
+
 //a class to hold an encoded kmer
 class Kmer{
 protected:
@@ -72,7 +163,7 @@ public:
 	Bloom& operator=(Bloom&& o){bloom = std::move(o.bloom); return *this;} //move assign
 	~Bloom();
 	bloom_parameters params;
-	bloom_filter bloom;
+	blocked_bloom_filter bloom;
 	inline void insert(const Kmer& kmer){if(kmer.valid()){bloom.insert(kmer.get());}}
 	template <typename T>
 	inline void insert(const T& t){bloom.insert(t);}
