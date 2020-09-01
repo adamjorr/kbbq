@@ -44,7 +44,7 @@ public:
 		}
 		bit_table_ = table_type(static_cast<unsigned char*>(ptr),
 			[](unsigned char* x){free(x);});
-		std::fill(&bit_table_[0], &bit_table_[0] + table_size_, static_cast<unsigned char>(0));
+		std::fill(&bit_table_[0], &bit_table_[0] + table_size_ / bits_per_char, static_cast<unsigned char>(0));
 	}
 
 	inline virtual void insert(const unsigned char* key_begin, const size_t& length){
