@@ -70,7 +70,7 @@ public:
 		size_t block = block_number * block_size / bits_per_char; //index in table with first byte of block
 		for(size_t i = 1; i < salt_.size(); ++i){
 			compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
-			if(bit_table_[block + bit_index / bits_per_char] != bit_mask[bit]){
+			if((bit_table_[block + bit_index / bits_per_char] & bit_mask[bit]) != bit_mask[bit]){
 				return false;
 			}
 		}
@@ -102,7 +102,106 @@ protected:
 	}
 };
 
+class pattern_blocked_bf: public blocked_bloom_filter
+{
+protected:
+	typedef std::unique_ptr<unsigned char[], std::function<void(unsigned char*)>> pattern_type;
+	static const size_t num_patterns = 65536; //4MiB
+	std::unique_ptr<unsigned char[], std::function<void(unsigned char*)>> patterns;
+public:
+	pattern_blocked_bf(): blocked_bloom_filter(){}
+	pattern_blocked_bf(const bloom_parameters& p): blocked_bloom_filter(p){
+		void* ptr = 0;
+		//we have num_patterns patterns, each with size block_size (in bits)
+		int ret = posix_memalign(&ptr, block_size, num_patterns * block_size / bits_per_char);
+		if(ret != 0){
+			throw std::bad_alloc();
+		}
+		patterns = pattern_type(static_cast<unsigned char*>(ptr),
+			[](unsigned char* x){free(x);});
+		std::fill(&patterns[0],
+			&patterns[0] + num_patterns * block_size / bits_per_char,
+			static_cast<unsigned char>(0));
+		minion::Random rng;
+		rng.Seed(random_seed_); //todo: check that seeding is proper for multiple rng instances
+		//ie. the rng in kmersubsampler.
+		std::uniform_int_distribution<> d(0, block_size-1);
 
+		std::vector<size_t> possible_bits(block_size);
+		std::iota(possible_bits.begin(), possible_bits.end(), 0);
+		//begin with a fully shuffled array
+		std::shuffle(possible_bits.begin(), possible_bits.end(), rng);
+		for(size_t i = 0; i < num_patterns; ++i){
+			//first index of the block containing the pattern
+			size_t block_start_idx = i * block_size / bits_per_char;
+			//sample salt_.size() bits
+			for(int j = 0; j < salt_.size(); ++j){
+				size_t sampled_bit = d(rng,
+					std::uniform_int_distribution<>::param_type{j, block_size - 1});
+				std::swap(possible_bits[j], possible_bits[sampled_bit]);
+			}
+			//set the bits in the appropriate pattern
+			for(size_t j = 0; j < salt_.size(); ++j){
+				size_t sampled_bit_number = possible_bits[j]; //the bit out of 512
+				//the index of the correct unsigned char within the block
+				size_t sampled_bit_idx = block_start_idx + sampled_bit_number / bits_per_char;
+				//set the index of the bit within the char
+				patterns[sampled_bit_idx] |= bit_mask[sampled_bit_number % bits_per_char];
+			}
+		}
+	}
+	inline virtual void insert(const unsigned char* key_begin, const size_t& length){
+		size_t block_index = hash_ap(key_begin, length, salt_[0]) % (table_size_ / block_size);
+		size_t block = block_index * block_size / bits_per_char; //index in table with first byte of block
+		size_t pattern_index = hash_ap(key_begin, length, salt_[1]) % num_patterns;
+		size_t pattern = pattern_index * block_size / bits_per_char;
+		for(size_t i = 0; i < block_size / bits_per_char; ++i){
+			bit_table_[block + i] |= patterns[pattern + i];
+		}
+		++inserted_element_count_;
+	}
+
+	template <typename T>
+	inline void insert(const T& t)
+	{
+		// Note: T must be a C++ POD type.
+		insert(reinterpret_cast<const unsigned char*>(&t),sizeof(T));
+	}
+
+	inline virtual bool contains(const unsigned char* key_begin, const size_t length) const{
+		size_t block_index = hash_ap(key_begin, length, salt_[0]) % (table_size_ / block_size);
+		size_t block = block_index * block_size / bits_per_char; //index in table with first byte of block
+		size_t pattern_index = hash_ap(key_begin, length, salt_[1]) % num_patterns;
+		size_t pattern = pattern_index * block_size / bits_per_char;
+		for(size_t i = 0; i < block_size / bits_per_char; ++i){
+			if(bit_table_[block + i] & patterns[pattern + i] != patterns[pattern + i]){
+				return false;
+			}
+		}
+		return true;
+	}
+
+	template <typename T>
+	inline bool contains(const T& t) const
+	{
+		return contains(reinterpret_cast<const unsigned char*>(&t),static_cast<std::size_t>(sizeof(T)));
+	}
+
+	inline double effective_fpp() const {
+		long double c = size() / element_count() ;
+		long double lambda = block_size / c;
+		long double fpp = 0;
+		for(int i = 0; i < 3 * lambda; ++i){ //var = lambda, so 3*lambda should include most anything
+			long double p_block = std::pow(lambda, i) * std::exp(-lambda) / std::tgammal(i+1);
+			long double p_collision = 1.0l - std::pow(1.0l - 1.0l / (num_patterns), i);
+			long double fpr_inner = std::pow(1.0l - std::exp(-1.0l * salt_.size() * i / block_size), 1.0l * salt_.size());
+			fpr_inner = p_collision + (1.0l - p_collision) * fpr_inner;
+			fpp += p_block * fpr_inner;
+		}
+		return fpp;
+	}
+
+};
 
 
 
@@ -163,7 +262,7 @@ public:
 	Bloom& operator=(Bloom&& o){bloom = std::move(o.bloom); return *this;} //move assign
 	~Bloom();
 	bloom_parameters params;
-	blocked_bloom_filter bloom;
+	pattern_blocked_bf bloom;
 	inline void insert(const Kmer& kmer){if(kmer.valid()){bloom.insert(kmer.get());}}
 	template <typename T>
 	inline void insert(const T& t){bloom.insert(t);}
