@@ -48,7 +48,7 @@ public:
 		std::uninitialized_fill_n(bit_table_.get(), table_size_ / bits_per_char, static_cast<unsigned char>(0));
 	}
 	//delete copy ctor
-	blocked_bloom_filter(const bloom_filter&) = delete;
+	blocked_bloom_filter(const blocked_bloom_filter&) = delete;
 	//delete copy assignment
 	blocked_bloom_filter& operator=(const blocked_bloom_filter&) = delete;
 	//move ctor
@@ -188,6 +188,25 @@ public:
 			}
 		}
 	}
+	//delete copy ctor
+	pattern_blocked_bf(const pattern_blocked_bf&) = delete;
+	//delete copy assignment
+	pattern_blocked_bf& operator=(const pattern_blocked_bf&) = delete;
+	//move ctor
+	pattern_blocked_bf(pattern_blocked_bf&& o):
+		blocked_bloom_filter(std::move(o)), patterns(std::move(o.patterns))
+		{}
+
+	//move function
+	inline pattern_blocked_bf& operator=(pattern_blocked_bf&& o){
+		if(this != &o){
+			blocked_bloom_filter::operator=(std::move(o));
+			patterns = std::move(o.patterns);
+		}
+		return *this;
+	}
+
+
 	inline virtual void insert(const unsigned char* key_begin, const size_t& length){
 		size_t block_index = hash_ap(key_begin, length, salt_[0]) % (table_size_ / block_size);
 		size_t block = block_index * block_size / bits_per_char; //index in table with first byte of block
