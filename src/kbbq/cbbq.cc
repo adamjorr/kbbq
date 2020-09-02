@@ -71,6 +71,7 @@ int main(int argc, char* argv[]){
 	long double alpha = 0;
 	uint64_t genomelen = 0; //est w/ index with bam, w/ fq estimate w/ coverage
 	uint coverage = 0; //if not given, will be estimated.
+	uint32_t seed = 0; 
 	bool set_oq = false;
 	bool use_oq = false;
 	std::string fixedinput = "";
@@ -230,11 +231,16 @@ if(fixedinput == ""){ //no fixed input provided
 	bloom::Bloom subsampled(approx_kmers, sampler_desiredfpr); //lighter uses 1.5 * genomelen
 	bloom::Bloom trusted(approx_kmers, trusted_desiredfpr);
 
+	if(seed == 0){
+		seed = minion::create_seed_seq().GenerateOne();
+	}
+	std::cerr << "Seed: " << seed;
+
 	//sample kmers here.
 #ifdef KBBQ_USE_RAND_SAMPLER
-	std::srand(17);
+	std::srand(seed); //lighter uses 17
 #endif
-	htsiter::KmerSubsampler subsampler(file.get(), k, alpha);
+	htsiter::KmerSubsampler subsampler(file.get(), k, alpha, seed);
 	//load subsampled bf.
 	//these are hashed kmers.
 	subsampled_hashes = recalibrateutils::subsample_kmers(subsampler);
