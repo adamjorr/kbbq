@@ -38,19 +38,24 @@ public:
 		table_size_ += (table_size_ % block_size) != 0 ? block_size - (table_size_ % block_size) : 0;
 		generate_unique_salt();
 		void* ptr = 0;
-		int ret = posix_memalign(&ptr, block_size, table_size_ / bits_per_char);
+		int ret = posix_memalign(&ptr, block_size / bits_per_char,
+			table_size_ / bits_per_char);
 		if(ret != 0){
 			throw std::bad_alloc();
 		}
 		bit_table_ = table_type(static_cast<unsigned char*>(ptr),
 			[](unsigned char* x){free(x);});
-		std::fill(&bit_table_[0], &bit_table_[0] + table_size_ / bits_per_char, static_cast<unsigned char>(0));
+		std::uninitialized_fill_n(bit_table_.get(), table_size_ / bits_per_char, static_cast<unsigned char>(0));
+	}
+	inline virtual size_t num_blocks() const{
+		assert((table_size_ % block_size) == 0);
+		return table_size_ / block_size;
 	}
 
 	inline virtual void insert(const unsigned char* key_begin, const size_t& length){
 		size_t bit_index = 0;
 		size_t bit = 0;
-		size_t block_index = hash_ap(key_begin, length, salt_[0]) % (table_size_ / block_size);
+		size_t block_index = hash_ap(key_begin, length, salt_[0]) % num_blocks();
 		size_t block = block_index * block_size / bits_per_char; //index in table with first byte of block
 		for(size_t i = 1; i < salt_.size(); ++i){
 			compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
@@ -66,7 +71,7 @@ public:
 	inline virtual bool contains(const unsigned char* key_begin, const std::size_t length) const {
 		size_t bit_index = 0;
 		size_t bit = 0;
-		size_t block_number = hash_ap(key_begin, length, salt_[0]) % (table_size_ / block_size);
+		size_t block_number = hash_ap(key_begin, length, salt_[0]) % num_blocks();
 		size_t block = block_number * block_size / bits_per_char; //index in table with first byte of block
 		for(size_t i = 1; i < salt_.size(); ++i){
 			compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
@@ -113,14 +118,15 @@ public:
 	pattern_blocked_bf(const bloom_parameters& p): blocked_bloom_filter(p){
 		void* ptr = 0;
 		//we have num_patterns patterns, each with size block_size (in bits)
-		int ret = posix_memalign(&ptr, block_size, num_patterns * block_size / bits_per_char);
+		int ret = posix_memalign(&ptr, block_size / bits_per_char,
+			num_patterns * block_size / bits_per_char);
 		if(ret != 0){
 			throw std::bad_alloc();
 		}
 		patterns = pattern_type(static_cast<unsigned char*>(ptr),
 			[](unsigned char* x){free(x);});
-		std::fill(&patterns[0],
-			&patterns[0] + num_patterns * block_size / bits_per_char,
+		std::uninitialized_fill_n(patterns.get(),
+			num_patterns * block_size / bits_per_char,
 			static_cast<unsigned char>(0));
 		minion::Random rng;
 		rng.Seed(random_seed_); //todo: check that seeding is proper for multiple rng instances
