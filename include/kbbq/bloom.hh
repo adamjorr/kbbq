@@ -47,6 +47,38 @@ public:
 			[](unsigned char* x){free(x);});
 		std::uninitialized_fill_n(bit_table_.get(), table_size_ / bits_per_char, static_cast<unsigned char>(0));
 	}
+	//delete copy ctor
+	blocked_bloom_filter(const bloom_filter&) = delete;
+	//delete copy assignment
+	blocked_bloom_filter& operator=(const blocked_bloom_filter&) = delete;
+	//move ctor
+	blocked_bloom_filter(blocked_bloom_filter&& o){
+		salt_count_ = std::move(o.salt_count_);
+		table_size_ = std::move(o.table_size_);
+		bit_table_ = std::move(o.bit_table_);
+		salt_ = std::move(o.salt_);
+		projected_element_count_ = std::move(o.projected_element_count_);
+		inserted_element_count_ = std::move(o.inserted_element_count_);
+		random_seed_ = std::move(o.random_seed_);
+		desired_false_positive_probability_ = std::move(o.desired_false_positive_probability_);
+	}
+
+	//move function
+	inline blocked_bloom_filter& operator=(blocked_bloom_filter&& o){
+		if(this != &o){
+			salt_count_ = std::move(o.salt_count_);
+			table_size_ = std::move(o.table_size_);
+			bit_table_ = std::move(o.bit_table_);
+			salt_ = std::move(o.salt_);
+			projected_element_count_ = std::move(o.projected_element_count_);
+			inserted_element_count_ = std::move(o.inserted_element_count_);
+			random_seed_ = std::move(o.random_seed_);
+			desired_false_positive_probability_ = std::move(o.desired_false_positive_probability_);
+		}
+		return *this;
+	}
+
+
 	inline virtual size_t num_blocks() const{
 		assert((table_size_ % block_size) == 0);
 		return table_size_ / block_size;
@@ -263,12 +295,13 @@ public:
 class Bloom
 {
 public:
+	typedef pattern_blocked_bf bloom_type;
 	Bloom(unsigned long long int projected_element_count, double fpr, unsigned long long int seed = 0xA5A5A5A55A5A5A5AULL);
 	Bloom(Bloom&& b) noexcept: bloom(std::move(b.bloom)){} //move ctor
 	Bloom& operator=(Bloom&& o){bloom = std::move(o.bloom); return *this;} //move assign
 	~Bloom();
 	bloom_parameters params;
-	pattern_blocked_bf bloom;
+	bloom_type bloom;
 	inline void insert(const Kmer& kmer){if(kmer.valid()){bloom.insert(kmer.get());}}
 	template <typename T>
 	inline void insert(const T& t){bloom.insert(t);}
