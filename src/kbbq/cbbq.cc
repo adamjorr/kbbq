@@ -234,7 +234,7 @@ if(fixedinput == ""){ //no fixed input provided
 	if(seed == 0){
 		seed = minion::create_seed_seq().GenerateOne();
 	}
-	std::cerr << "Seed: " << seed;
+	std::cerr << "Seed: " << seed << std::endl ;
 
 	//sample kmers here.
 #ifdef KBBQ_USE_RAND_SAMPLER
