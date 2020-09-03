@@ -45,7 +45,8 @@ public:
 		}
 		bit_table_ = table_type(static_cast<unsigned char*>(ptr),
 			[](unsigned char* x){free(x);});
-		std::fill_n(bit_table_.get(), table_size_ / bits_per_char, static_cast<unsigned char>(0x00));
+		std::uninitialized_fill_n(bit_table_.get(), table_size_ / bits_per_char,
+			static_cast<unsigned char>(0x00));
 	}
 	//delete copy ctor
 	blocked_bloom_filter(const blocked_bloom_filter&) = delete;
@@ -89,17 +90,23 @@ public:
  //      	bit       = bit_index % bits_per_char; // 
 	// }
 
+	inline virtual size_t get_block(const bloom_type& hash) const{
+		return (hash % (table_size_ - block_size + 1)) / bits_per_char; // how lighter does it
+		//i think this should be changed s.t. we pick a defined, aligned block.
+	}
+
 	inline virtual void insert(const unsigned char* key_begin, const size_t& length){
 		size_t bit_index = 0;
 		size_t bit = 0;
-		size_t block_index = hash_ap(key_begin, length, salt_[0]) % num_blocks();
-		size_t block = block_index * block_size / bits_per_char; //index in table with first byte of block
+		//index in table with first byte of block
+		size_t block = get_block(hash_ap(key_begin, length, salt_[0]));
 		for(size_t i = 1; i < salt_.size(); ++i){
 			compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
 			*(bit_table_.get() + block + (bit_index / bits_per_char)) |= bit_mask[bit];
 		}
 		++inserted_element_count_;
 	}
+
 	template <typename T>
 	inline void insert(const T& t){
 		insert(reinterpret_cast<const unsigned char*>(&t), sizeof(T));
@@ -108,8 +115,8 @@ public:
 	inline virtual bool contains(const unsigned char* key_begin, const std::size_t length) const {
 		size_t bit_index = 0;
 		size_t bit = 0;
-		size_t block_number = hash_ap(key_begin, length, salt_[0]) % num_blocks();
-		size_t block = block_number * block_size / bits_per_char; //index in table with first byte of block
+		//index in table with first byte of block
+		size_t block = get_block(hash_ap(key_begin, length, salt_[0])); 
 		for(size_t i = 1; i < salt_.size(); ++i){
 			compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
 			if((*(bit_table_.get() + block + (bit_index / bits_per_char)) & bit_mask[bit]) != bit_mask[bit]){
@@ -162,7 +169,7 @@ public:
 		}
 		patterns = pattern_type(static_cast<unsigned char*>(ptr),
 			[](unsigned char* x){free(x);});
-		std::fill_n(patterns.get(),
+		std::uninitialized_fill_n(patterns.get(),
 			num_patterns * block_size / bits_per_char,
 			static_cast<unsigned char>(0x00));
 		minion::Random rng;
@@ -211,12 +218,15 @@ public:
 		return *this;
 	}
 
+	inline virtual size_t get_pattern(const bloom_type& hash) const{
+		size_t pattern_number = hash & (num_patterns - 1); //which block
+		return pattern_number * block_size / bits_per_char; // how lighter does it
+	}
 
 	inline virtual void insert(const unsigned char* key_begin, const size_t& length){
-		size_t block_index = hash_ap(key_begin, length, salt_[0]) % (table_size_ / block_size);
-		size_t block = block_index * block_size / bits_per_char; //index in table with first byte of block
-		size_t pattern_index = hash_ap(key_begin, length, salt_[1]) % num_patterns;
-		size_t pattern = pattern_index * block_size / bits_per_char;
+		//index in table with first byte of block
+		size_t block = get_block(hash_ap(key_begin, length, salt_[0]));
+		size_t pattern = get_pattern(hash_ap(key_begin, length, salt_[1]));
 		for(size_t i = 0; i < block_size / bits_per_char; ++i){
 			*(bit_table_.get() + block + i) |= *(patterns.get() + pattern + i);
 		}
@@ -231,10 +241,9 @@ public:
 	}
 
 	inline virtual bool contains(const unsigned char* key_begin, const size_t length) const{
-		size_t block_index = hash_ap(key_begin, length, salt_[0]) % (table_size_ / block_size);
-		size_t block = block_index * block_size / bits_per_char; //index in table with first byte of block
-		size_t pattern_index = hash_ap(key_begin, length, salt_[1]) % num_patterns;
-		size_t pattern = pattern_index * block_size / bits_per_char;
+		//index in table with first byte of block
+		size_t block = get_block(hash_ap(key_begin, length, salt_[0]));
+		size_t pattern = get_pattern(hash_ap(key_begin, length, salt_[1]));
 		for(size_t i = 0; i < block_size / bits_per_char; ++i){
 			if(*(bit_table_.get() + block + i) & *(patterns.get() + pattern + i) !=
 				*(patterns.get() + pattern + i))
