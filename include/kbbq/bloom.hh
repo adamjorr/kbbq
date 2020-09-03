@@ -20,7 +20,7 @@ namespace bloom{
 class blocked_bloom_filter: public bloom_filter
 {
 protected:
-	typedef std::unique_ptr<unsigned char[], std::function<void(unsigned char*)>> table_type;
+	typedef std::unique_ptr<unsigned char, std::function<void(unsigned char*)>> table_type;
 
 public:
 	static const size_t block_size = 512; //512 bits = 64 bytes
@@ -45,7 +45,7 @@ public:
 		}
 		bit_table_ = table_type(static_cast<unsigned char*>(ptr),
 			[](unsigned char* x){free(x);});
-		std::uninitialized_fill_n(bit_table_.get(), table_size_ / bits_per_char, static_cast<unsigned char>(0));
+		std::fill_n(bit_table_.get(), table_size_ / bits_per_char, static_cast<unsigned char>(0x00));
 	}
 	//delete copy ctor
 	blocked_bloom_filter(const blocked_bloom_filter&) = delete;
@@ -84,6 +84,11 @@ public:
 		return table_size_ / block_size;
 	}
 
+	// inline virtual void compute_indices(const bloom_type& hash, std::size_t& bit_index, std::size_t& bit) const {
+	// 	bit_index = hash % block_size; //which bit in the block?
+ //      	bit       = bit_index % bits_per_char; // 
+	// }
+
 	inline virtual void insert(const unsigned char* key_begin, const size_t& length){
 		size_t bit_index = 0;
 		size_t bit = 0;
@@ -91,7 +96,7 @@ public:
 		size_t block = block_index * block_size / bits_per_char; //index in table with first byte of block
 		for(size_t i = 1; i < salt_.size(); ++i){
 			compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
-			bit_table_[block + bit_index / bits_per_char] |= bit_mask[bit];
+			*(bit_table_.get() + block + (bit_index / bits_per_char)) |= bit_mask[bit];
 		}
 		++inserted_element_count_;
 	}
@@ -107,7 +112,7 @@ public:
 		size_t block = block_number * block_size / bits_per_char; //index in table with first byte of block
 		for(size_t i = 1; i < salt_.size(); ++i){
 			compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
-			if((bit_table_[block + bit_index / bits_per_char] & bit_mask[bit]) != bit_mask[bit]){
+			if((*(bit_table_.get() + block + (bit_index / bits_per_char)) & bit_mask[bit]) != bit_mask[bit]){
 				return false;
 			}
 		}
@@ -142,9 +147,9 @@ protected:
 class pattern_blocked_bf: public blocked_bloom_filter
 {
 protected:
-	typedef std::unique_ptr<unsigned char[], std::function<void(unsigned char*)>> pattern_type;
+	typedef std::unique_ptr<unsigned char, std::function<void(unsigned char*)>> pattern_type;
 	static const size_t num_patterns = 65536; //4MiB
-	std::unique_ptr<unsigned char[], std::function<void(unsigned char*)>> patterns;
+	pattern_type patterns;
 public:
 	pattern_blocked_bf(): blocked_bloom_filter(){}
 	pattern_blocked_bf(const bloom_parameters& p): blocked_bloom_filter(p){
@@ -157,9 +162,9 @@ public:
 		}
 		patterns = pattern_type(static_cast<unsigned char*>(ptr),
 			[](unsigned char* x){free(x);});
-		std::uninitialized_fill_n(patterns.get(),
+		std::fill_n(patterns.get(),
 			num_patterns * block_size / bits_per_char,
-			static_cast<unsigned char>(0));
+			static_cast<unsigned char>(0x00));
 		minion::Random rng;
 		rng.Seed(random_seed_); //todo: check that seeding is proper for multiple rng instances
 		//ie. the rng in kmersubsampler.
@@ -184,7 +189,7 @@ public:
 				//the index of the correct unsigned char within the block
 				size_t sampled_bit_idx = block_start_idx + sampled_bit_number / bits_per_char;
 				//set the index of the bit within the char
-				patterns[sampled_bit_idx] |= bit_mask[sampled_bit_number % bits_per_char];
+				*(patterns.get() + sampled_bit_idx) |= bit_mask[sampled_bit_number % bits_per_char];
 			}
 		}
 	}
@@ -213,7 +218,7 @@ public:
 		size_t pattern_index = hash_ap(key_begin, length, salt_[1]) % num_patterns;
 		size_t pattern = pattern_index * block_size / bits_per_char;
 		for(size_t i = 0; i < block_size / bits_per_char; ++i){
-			bit_table_[block + i] |= patterns[pattern + i];
+			*(bit_table_.get() + block + i) |= *(patterns.get() + pattern + i);
 		}
 		++inserted_element_count_;
 	}
@@ -231,7 +236,9 @@ public:
 		size_t pattern_index = hash_ap(key_begin, length, salt_[1]) % num_patterns;
 		size_t pattern = pattern_index * block_size / bits_per_char;
 		for(size_t i = 0; i < block_size / bits_per_char; ++i){
-			if(bit_table_[block + i] & patterns[pattern + i] != patterns[pattern + i]){
+			if(*(bit_table_.get() + block + i) & *(patterns.get() + pattern + i) !=
+				*(patterns.get() + pattern + i))
+			{
 				return false;
 			}
 		}
