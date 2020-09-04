@@ -192,7 +192,7 @@ public:
 			}
 			//set the bits in the appropriate pattern
 			for(size_t j = 0; j < salt_.size(); ++j){
-				size_t sampled_bit_number = possible_bits[j]; //the bit out of 512
+				size_t sampled_bit_number = possible_bits[j]; //the bit out of [0, 511]
 				//the index of the correct unsigned char within the block
 				size_t sampled_bit_idx = block_start_idx + sampled_bit_number / bits_per_char;
 				//set the index of the bit within the char
@@ -245,7 +245,7 @@ public:
 		size_t block = get_block(hash_ap(key_begin, length, salt_[0]));
 		size_t pattern = get_pattern(hash_ap(key_begin, length, salt_[1]));
 		for(size_t i = 0; i < block_size / bits_per_char; ++i){
-			if(*(bit_table_.get() + block + i) & *(patterns.get() + pattern + i) !=
+			if((*(bit_table_.get() + block + i) & *(patterns.get() + pattern + i)) !=
 				*(patterns.get() + pattern + i))
 			{
 				return false;
@@ -258,6 +258,24 @@ public:
 	inline bool contains(const T& t) const
 	{
 		return contains(reinterpret_cast<const unsigned char*>(&t),static_cast<std::size_t>(sizeof(T)));
+	}
+
+	inline virtual bloom_type block_hash(const unsigned char* key_begin, const size_t& length) const{
+		return hash_ap(key_begin, length, salt_[0]);
+	}
+
+	template <typename T>
+	inline bloom_type block_hash(const T& t) const{
+		return block_hash(reinterpret_cast<const unsigned char*>(&t),static_cast<std::size_t>(sizeof(T)));
+	}
+
+	inline virtual bloom_type pattern_hash(const unsigned char* key_begin, const size_t& length) const{
+		return hash_ap(key_begin, length, salt_[1]);
+	}
+
+	template <typename T>
+	inline bloom_type pattern_hash(const T& t) const{
+		return pattern_hash(reinterpret_cast<const unsigned char*>(&t),static_cast<std::size_t>(sizeof(T)));
 	}
 
 	inline double effective_fpp() const {
