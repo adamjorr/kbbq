@@ -91,8 +91,11 @@ public:
 	// }
 
 	inline virtual size_t get_block(const bloom_type& hash) const{
-		return (hash % (table_size_ - block_size + 1)) / bits_per_char; // how lighter does it
-		//i think this should be changed s.t. we pick a defined, aligned block.
+		// how lighter does it
+		// return (hash % (table_size_ - block_size + 1)) / bits_per_char; 
+		//i think we should pick a defined, aligned block.
+		return (hash % num_blocks()) * block_size / bits_per_char;
+		
 	}
 
 	inline virtual void insert(const unsigned char* key_begin, const size_t& length){
