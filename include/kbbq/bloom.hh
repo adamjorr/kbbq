@@ -258,8 +258,10 @@ public:
 		size_t pattern = get_pattern(hash_ap(key_begin, length, salt_[1]));
 		static_assert(block_size / bits_per_char / sizeof(cell_type) > 0,
 			"Block size must be greater than or equal to size of cell type.");
+		cell_type* bit_block = reinterpret_cast<cell_type*>(__builtin_assume_aligned(bit_table_.get() + block, block_size / bits_per_char));
+		cell_type* pattern_block = reinterpret_cast<cell_type*>(__builtin_assume_aligned(patterns.get() + pattern, block_size / bits_per_char));
 		for(size_t i = 0; i < block_size / bits_per_char / sizeof(cell_type); ++i){
-			*(bit_table_.get() + block + i) |= *(patterns.get() + pattern + i);
+			*(bit_block + i) |= *(pattern_block + i);
 		}
 		++inserted_element_count_;
 	}
@@ -277,9 +279,11 @@ public:
 		size_t pattern = get_pattern(hash_ap(key_begin, length, salt_[1]));
 		static_assert(block_size / bits_per_char / sizeof(cell_type) > 0,
 			"Block size must be greater than or equal to size of cell type.");
+		cell_type* bit_block = reinterpret_cast<cell_type*>(__builtin_assume_aligned(bit_table_.get() + block, block_size / bits_per_char));
+		cell_type* pattern_block = reinterpret_cast<cell_type*>(__builtin_assume_aligned(patterns.get() + pattern, block_size / bits_per_char));
 		for(size_t i = 0; i < block_size / bits_per_char / sizeof(cell_type); ++i){
-			if(!_mm256_testc_si256((*(bit_table_.get() + block + i) & *(patterns.get() + pattern + i)), //!=
-				*(patterns.get() + pattern + i)))
+			if(!_mm256_testc_si256((*(bit_block + i) & *(pattern_block + i)), //==
+				*(pattern_block + i)))
 			{
 				return false;
 			}
