@@ -109,7 +109,7 @@ public:
 	//base type inside the vector.
 	inline virtual std::pair<size_t,size_t> get_vector_unit(const size_t& bit_index) const{
 		return std::make_pair((bit_index / bits_per_char) / sizeof(cell_type),
-			(bit_index / bits_per_char) / sizeof(base_type));
+			(bit_index / bits_per_char) % (sizeof(cell_type)/sizeof(base_type)));
 	}
 
 	inline virtual void insert(const unsigned char* key_begin, const size_t& length){
@@ -225,7 +225,7 @@ public:
 				std::tie(vec, unit) = get_vector_unit(sampled_bit_number);
 				size_t sampled_bit_idx = block_start_idx + vec;
 				//set the index of the bit within the char
-				(*(patterns.get() + sampled_bit_idx))[unit] |= static_cast<base_type>(1) << (sampled_bit_number % (sizeof(cell_type) * bits_per_char));
+				(*(patterns.get() + sampled_bit_idx))[unit] |= (static_cast<base_type>(1) << (sampled_bit_number % (sizeof(base_type) * bits_per_char)));
 			}
 		}
 	}
@@ -279,7 +279,7 @@ public:
 			"Block size must be greater than or equal to size of cell type.");
 		for(size_t i = 0; i < block_size / bits_per_char / sizeof(cell_type); ++i){
 			if(!_mm256_testc_si256((*(bit_table_.get() + block + i) & *(patterns.get() + pattern + i)), //!=
-				*(patterns.get() + pattern + i)));
+				*(patterns.get() + pattern + i)))
 			{
 				return false;
 			}
