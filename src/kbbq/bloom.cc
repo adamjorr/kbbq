@@ -7,6 +7,8 @@
 namespace bloom
 {
 
+	constexpr blocked_bloom_filter::cell_type blocked_bloom_filter::cell_type_zero;
+
 	Bloom::Bloom(unsigned long long int projected_element_count, double fpr,
 	unsigned long long int seed): params(){
 		// params(projected_element_count, fpr, seed), bloom(params){

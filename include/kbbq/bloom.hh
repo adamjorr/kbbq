@@ -9,6 +9,7 @@
 #include <iostream>
 #include "bloom_filter.hpp"
 #include <stdexcept>
+#include <immintrin.h>
 
 #define PREFIXBITS 10
 #define KBBQ_MAX_KMER 32
@@ -20,8 +21,13 @@ namespace bloom{
 class blocked_bloom_filter: public bloom_filter
 {
 protected:
-	typedef std::unique_ptr<unsigned char, std::function<void(unsigned char*)>> table_type;
-
+	typedef unsigned char v32uqi __attribute__ ((__vector_size__ (32))); //activate gcc vectorization
+	typedef long long base_type;
+	typedef base_type v4di __attribute__ ((__vector_size__ (32)));
+	typedef v4di cell_type;
+	static constexpr cell_type cell_type_zero = {0ULL,0ULL,0ULL,0ULL}; //used to initialize
+	typedef std::unique_ptr<cell_type, std::function<void(cell_type*)>> table_type;
+	// typedef std::unique_ptr<unsigned char, std::function<void(unsigned char*)>> table_type;
 public:
 	static const size_t block_size = 512; //512 bits = 64 bytes
 	table_type bit_table_;
@@ -43,10 +49,10 @@ public:
 		if(ret != 0){
 			throw std::bad_alloc();
 		}
-		bit_table_ = table_type(static_cast<unsigned char*>(ptr),
-			[](unsigned char* x){free(x);});
-		std::uninitialized_fill_n(bit_table_.get(), table_size_ / bits_per_char,
-			static_cast<unsigned char>(0x00));
+		bit_table_ = table_type(static_cast<cell_type*>(ptr),
+			[](cell_type* x){free(x);});
+		std::uninitialized_fill_n(bit_table_.get(), table_size_ / bits_per_char / sizeof(cell_type),
+			cell_type_zero);
 	}
 	//delete copy ctor
 	blocked_bloom_filter(const blocked_bloom_filter&) = delete;
@@ -93,19 +99,32 @@ public:
 	inline virtual size_t get_block(const bloom_type& hash) const{
 		// how lighter does it
 		// return (hash % (table_size_ - block_size + 1)) / bits_per_char; 
-		//i think we should pick a defined, aligned block.
-		return (hash % num_blocks()) * block_size / bits_per_char;
+		// we intead pick an aligned block.
+		// hash index * sizeof(block) / sizeof(cell)
+		return (hash % num_blocks()) * (block_size / bits_per_char) / (sizeof(cell_type));
 		
+	}
+
+	//pick the correct vector inside the block and then the correct
+	//base type inside the vector.
+	inline virtual std::pair<size_t,size_t> get_vector_unit(const size_t& bit_index) const{
+		return std::make_pair((bit_index / bits_per_char) / sizeof(cell_type),
+			(bit_index / bits_per_char) / sizeof(base_type));
 	}
 
 	inline virtual void insert(const unsigned char* key_begin, const size_t& length){
 		size_t bit_index = 0;
 		size_t bit = 0;
 		//index in table with first byte of block
-		size_t block = get_block(hash_ap(key_begin, length, salt_[0]));
+		size_t block_idx = get_block(hash_ap(key_begin, length, salt_[0]));
+		cell_type* block = bit_table_.get() + block_idx;
+		size_t vec, unit;
 		for(size_t i = 1; i < salt_.size(); ++i){
 			compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
-			*(bit_table_.get() + block + (bit_index / bits_per_char)) |= bit_mask[bit];
+			//the bit index is out of 512, the bit is out of 8.
+			//we advance to the proper vector, then subscript to the proper byte
+			std::tie(vec, unit) = get_vector_unit(bit_index);
+			(*(block + vec))[unit] |= static_cast<base_type>(1) << bit;
 		}
 		++inserted_element_count_;
 	}
@@ -119,10 +138,15 @@ public:
 		size_t bit_index = 0;
 		size_t bit = 0;
 		//index in table with first byte of block
-		size_t block = get_block(hash_ap(key_begin, length, salt_[0])); 
+		size_t block_idx = get_block(hash_ap(key_begin, length, salt_[0])); 
+		cell_type* block = bit_table_.get() + block_idx;
+		size_t vec, unit;
 		for(size_t i = 1; i < salt_.size(); ++i){
 			compute_indices(hash_ap(key_begin, length, salt_[i]), bit_index, bit);
-			if((*(bit_table_.get() + block + (bit_index / bits_per_char)) & bit_mask[bit]) != bit_mask[bit]){
+			std::tie(vec, unit) = get_vector_unit(bit_index);
+			if( ((*(block + vec))[unit] & static_cast<base_type>(1) << bit) !=
+				static_cast<base_type>(1) << bit)
+			{
 				return false;
 			}
 		}
@@ -150,14 +174,14 @@ public:
 protected:
 	inline virtual void compute_indices(const bloom_type& hash, std::size_t& bit_index, std::size_t& bit) const {
 		bit_index = hash % block_size; //which bit in the block?
-      	bit       = bit_index % bits_per_char; // 
+      	bit       = bit_index % (bits_per_char * sizeof(base_type)); //which bit in the base type?
 	}
 };
 
 class pattern_blocked_bf: public blocked_bloom_filter
 {
 protected:
-	typedef std::unique_ptr<unsigned char, std::function<void(unsigned char*)>> pattern_type;
+	typedef std::unique_ptr<cell_type, std::function<void(cell_type*)>> pattern_type;
 	static const size_t num_patterns = 65536; //4MiB
 	pattern_type patterns;
 public:
@@ -170,11 +194,11 @@ public:
 		if(ret != 0){
 			throw std::bad_alloc();
 		}
-		patterns = pattern_type(static_cast<unsigned char*>(ptr),
-			[](unsigned char* x){free(x);});
+		patterns = pattern_type(static_cast<cell_type*>(ptr),
+			[](cell_type* x){free(x);});
 		std::uninitialized_fill_n(patterns.get(),
-			num_patterns * block_size / bits_per_char,
-			static_cast<unsigned char>(0x00));
+			num_patterns * block_size / bits_per_char / sizeof(cell_type),
+			cell_type_zero);
 		minion::Random rng;
 		rng.Seed(random_seed_); //todo: check that seeding is proper for multiple rng instances
 		//ie. the rng in kmersubsampler.
@@ -186,7 +210,7 @@ public:
 		std::shuffle(possible_bits.begin(), possible_bits.end(), rng);
 		for(size_t i = 0; i < num_patterns; ++i){
 			//first index of the block containing the pattern
-			size_t block_start_idx = i * block_size / bits_per_char;
+			size_t block_start_idx = i * (block_size / bits_per_char) / sizeof(cell_type);
 			//sample salt_.size() bits
 			for(int j = 0; j < salt_.size(); ++j){
 				size_t sampled_bit = d(rng,
@@ -194,12 +218,14 @@ public:
 				std::swap(possible_bits[j], possible_bits[sampled_bit]);
 			}
 			//set the bits in the appropriate pattern
+			size_t vec, unit;
 			for(size_t j = 0; j < salt_.size(); ++j){
 				size_t sampled_bit_number = possible_bits[j]; //the bit out of [0, 511]
-				//the index of the correct unsigned char within the block
-				size_t sampled_bit_idx = block_start_idx + sampled_bit_number / bits_per_char;
+				//the index of the correct vector and byte within the block
+				std::tie(vec, unit) = get_vector_unit(sampled_bit_number);
+				size_t sampled_bit_idx = block_start_idx + vec;
 				//set the index of the bit within the char
-				*(patterns.get() + sampled_bit_idx) |= bit_mask[sampled_bit_number % bits_per_char];
+				(*(patterns.get() + sampled_bit_idx))[unit] |= static_cast<base_type>(1) << (sampled_bit_number % (sizeof(cell_type) * bits_per_char));
 			}
 		}
 	}
@@ -223,14 +249,16 @@ public:
 
 	inline virtual size_t get_pattern(const bloom_type& hash) const{
 		size_t pattern_number = hash & (num_patterns - 1); //which block
-		return pattern_number * block_size / bits_per_char; // how lighter does it
+		return pattern_number * (block_size / bits_per_char) / sizeof(cell_type); // how lighter does it
 	}
 
 	inline virtual void insert(const unsigned char* key_begin, const size_t& length){
 		//index in table with first byte of block
 		size_t block = get_block(hash_ap(key_begin, length, salt_[0]));
 		size_t pattern = get_pattern(hash_ap(key_begin, length, salt_[1]));
-		for(size_t i = 0; i < block_size / bits_per_char; ++i){
+		static_assert(block_size / bits_per_char / sizeof(cell_type) > 0,
+			"Block size must be greater than or equal to size of cell type.");
+		for(size_t i = 0; i < block_size / bits_per_char / sizeof(cell_type); ++i){
 			*(bit_table_.get() + block + i) |= *(patterns.get() + pattern + i);
 		}
 		++inserted_element_count_;
@@ -247,9 +275,11 @@ public:
 		//index in table with first byte of block
 		size_t block = get_block(hash_ap(key_begin, length, salt_[0]));
 		size_t pattern = get_pattern(hash_ap(key_begin, length, salt_[1]));
-		for(size_t i = 0; i < block_size / bits_per_char; ++i){
-			if((*(bit_table_.get() + block + i) & *(patterns.get() + pattern + i)) !=
-				*(patterns.get() + pattern + i))
+		static_assert(block_size / bits_per_char / sizeof(cell_type) > 0,
+			"Block size must be greater than or equal to size of cell type.");
+		for(size_t i = 0; i < block_size / bits_per_char / sizeof(cell_type); ++i){
+			if(!_mm256_testc_si256((*(bit_table_.get() + block + i) & *(patterns.get() + pattern + i)), //!=
+				*(patterns.get() + pattern + i)));
 			{
 				return false;
 			}

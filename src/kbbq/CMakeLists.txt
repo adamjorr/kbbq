@@ -14,3 +14,5 @@ target_link_libraries(kbbq PUBLIC
     hts
     minionrng
 )
+
+target_compile_options(kbbq PUBLIC "-march=native")

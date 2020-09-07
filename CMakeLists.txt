@@ -15,6 +15,9 @@ add_subdirectory(src/kbbq)
 # add the executable
 add_executable(cbbq src/kbbq/cbbq.cc)
 
+# force native build to enable vectorization
+add_compile_options(-march=native)
+
 # add libraries for linking
 target_link_libraries(cbbq kbbq)
 
