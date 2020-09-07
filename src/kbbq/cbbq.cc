@@ -48,15 +48,15 @@ void print_vec(const std::vector<T>& v){
 std::ostream& put_now(std::ostream& os){
 	std::time_t t = std::time(nullptr);
 	std::tm tm = *std::localtime(&t);
-	return os << std::put_time(&tm, "%F %T %Z");
+	return os << std::put_time(&tm, "[%F %T %Z]");
 }
 
 int check_args(int argc, char* argv[]){
 	if(argc < 2){
-		std::cerr << put_now << "Usage: " << argv[0] << " input.[bam,fq]" << std::endl;
+		std::cerr << put_now << " Usage: " << argv[0] << " input.[bam,fq]" << std::endl;
 		return 1;
 	} else {
-		std::cerr << put_now << "Selected file: " << std::string(argv[1]) << std::endl;
+		std::cerr << put_now << "  Selected file: " << std::string(argv[1]) << std::endl;
 		return 0;
 	}
 }
@@ -97,7 +97,7 @@ int main(int argc, char* argv[]){
 			case 'k':
 				k = std::stoi(std::string(optarg));
 				if(k <= 0 || k > KBBQ_MAX_KMER){
-					std::cerr << put_now << "Error: k must be <= " << KBBQ_MAX_KMER << " and > 0." << std::endl;
+					std::cerr << put_now << "  Error: k must be <= " << KBBQ_MAX_KMER << " and > 0." << std::endl;
 				}
 				break;
 			case 'u':
@@ -129,7 +129,7 @@ int main(int argc, char* argv[]){
 #endif
 			case '?':
 			default:
-				std::cerr << put_now << "Unknown argument " << (char)opt << std::endl;
+				std::cerr << put_now << "  Unknown argument " << (char)opt << std::endl;
 				return 1;
 				break;
 		}
@@ -139,7 +139,7 @@ int main(int argc, char* argv[]){
 	if(optind < argc){
 		filename = std::string(argv[optind]);
 		while(++optind < argc){
-			std::cerr << put_now << "Warning: Extra argument " << argv[optind] << " ignored." << std::endl;
+			std::cerr << put_now << " Warning: Extra argument " << argv[optind] << " ignored." << std::endl;
 		}
 	}
 
@@ -151,7 +151,7 @@ int main(int argc, char* argv[]){
 	hFILE* fp = hopen(filename.c_str(), "r");
 	if (hts_detect_format(fp, &fmt) < 0) {
 		//error
-		std::cerr << put_now << "Error opening file " << filename << std::endl;
+		std::cerr << put_now << " Error opening file " << filename << std::endl;
 		hclose_abruptly(fp);
 		return 1;
 	}
@@ -162,7 +162,7 @@ int main(int argc, char* argv[]){
 		is_bam = false;
 	} else {
 		//error
-		std::cerr << put_now << "Error: File format must be bam, cram, or fastq." << std::endl;
+		std::cerr << put_now << " Error: File format must be bam, cram, or fastq." << std::endl;
 		hclose_abruptly(fp);
 		return 1;
 	}
@@ -173,7 +173,7 @@ if(fixedinput == ""){ //no fixed input provided
 
 	if(genomelen == 0){
 		if(is_bam){
-			std::cerr << put_now << "Estimating genome length" << std::endl;
+			std::cerr << put_now << " Estimating genome length" << std::endl;
 			samFile* sf = hts_hopen(fp, filename.c_str(), "r");
 			sam_hdr_t* h = sam_hdr_read(sf);
 			for(int i = 0; i < sam_hdr_nref(h); ++i){
@@ -182,27 +182,27 @@ if(fixedinput == ""){ //no fixed input provided
 			sam_hdr_destroy(h);
 			hts_close(sf);
 			if(genomelen == 0){
-				std::cerr << put_now << "Header does not contain genome information." <<
+				std::cerr << put_now << " Header does not contain genome information." <<
 					" Unable to estimate genome length; please provide it on the command line" <<
 					" using the --genomelen option." << std::endl;
 				return 1;
 			} else {
-				std::cerr << put_now << "Genome length is " << genomelen <<" bp." << std::endl;
+				std::cerr << put_now << " Genome length is " << genomelen <<" bp." << std::endl;
 			}
 		} else {
-			std::cerr << put_now << "Error: --genomelen must be specified if input is not a bam." << std::endl;
+			std::cerr << put_now << " Error: --genomelen must be specified if input is not a bam." << std::endl;
 		}
 	} else {
 		if(hclose(fp) != 0){
-			std::cerr << put_now << "Error closing file!" << std::endl;
+			std::cerr << put_now << " Error closing file!" << std::endl;
 		}
 	}
 	
 	//alpha not provided, coverage not provided
 	if(alpha == 0){
-		std::cerr << put_now << "Estimating alpha." << std::endl;
+		std::cerr << put_now << " Estimating alpha." << std::endl;
 		if(coverage == 0){
-			std::cerr << put_now << "Estimating coverage." << std::endl;
+			std::cerr << put_now << " Estimating coverage." << std::endl;
 			uint64_t seqlen = 0;
 			file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 			std::string seq("");
@@ -210,16 +210,16 @@ if(fixedinput == ""){ //no fixed input provided
 				seqlen += seq.length();
 			}
 			if (seqlen == 0){
-				std::cerr << put_now << "Error: total sequence length in file " << filename <<
+				std::cerr << put_now << " Error: total sequence length in file " << filename <<
 					" is 0. Check that the file isn't empty." << std::endl;
 				return 1;
 			}
-			std::cerr << put_now << "Total Sequence length: " << seqlen << std::endl;
-			std::cerr << put_now << "Genome length: " << genomelen << std::endl;
+			std::cerr << put_now << " Total Sequence length: " << seqlen << std::endl;
+			std::cerr << put_now << " Genome length: " << genomelen << std::endl;
 			coverage = seqlen/genomelen;
-			std::cerr << put_now << "Estimated coverage: " << coverage << std::endl;
+			std::cerr << put_now << " Estimated coverage: " << coverage << std::endl;
 			if(coverage == 0){
-				std::cerr << put_now << "Error: estimated coverage is 0." << std::endl;
+				std::cerr << put_now << " Error: estimated coverage is 0." << std::endl;
 				return 1;
 			}
 		}
@@ -232,7 +232,7 @@ if(fixedinput == ""){ //no fixed input provided
 
 	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 
-	std::cerr << put_now << "Sampling kmers at rate " << alpha << std::endl;
+	std::cerr << put_now << " Sampling kmers at rate " << alpha << std::endl;
 	recalibrateutils::kmer_cache_t subsampled_hashes;
 
 	//in the worst case, every kmer is unique, so we have genomelen * coverage kmers
@@ -244,7 +244,7 @@ if(fixedinput == ""){ //no fixed input provided
 	if(seed == 0){
 		seed = minion::create_seed_seq().GenerateOne();
 	}
-	std::cerr << put_now << "Seed: " << seed << std::endl ;
+	std::cerr << put_now << " Seed: " << seed << std::endl ;
 
 	//sample kmers here.
 #ifdef KBBQ_USE_RAND_SAMPLER
@@ -260,7 +260,7 @@ if(fixedinput == ""){ //no fixed input provided
 	for(std::vector<uint64_t>& v : subsampled_hashes){
 		nsampled += v.size();
 	}
-	std::cerr << put_now << "Sampled " << nsampled << " valid kmers." << std::endl;
+	std::cerr << put_now << " Sampled " << nsampled << " valid kmers." << std::endl;
 	recalibrateutils::add_kmers_to_bloom(subsampled_hashes, subsampled);
 
 #ifndef NDEBUG
@@ -283,9 +283,9 @@ if(fixedinput == ""){ //no fixed input provided
 
 	//calculate thresholds
 	long double fpr = subsampled.fprate();
-	std::cerr << put_now << "Approximate false positive rate: " << fpr << std::endl;
+	std::cerr << put_now << " Approximate false positive rate: " << fpr << std::endl;
 	if(fpr > .15){
-		std::cerr << put_now << "Error: false positive rate is too high. " <<
+		std::cerr << put_now << " Error: false positive rate is too high. " <<
 			"Increase genomelen parameter and try again." << std::endl;
 		return 1;
 	}
@@ -296,10 +296,10 @@ if(fixedinput == ""){ //no fixed input provided
 	std::vector<int> lighter_thresholds = {0, 1, 2, 3, 4, 4, 5, 5, 6, 6,
 		7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 12, 13, 13, 14, 14, 15, 15, 15, 16, 16, 17};
 
-	std::cerr << put_now << "Thresholds: [ " ;
+	std::cerr << put_now << " Thresholds: [ " ;
 	std::copy(thresholds.begin(), thresholds.end(), std::ostream_iterator<int>(std::cerr, " "));
 	std::cerr << "]" << std::endl;
-	std::cerr << put_now << "Lighter Th: [ " ;
+	std::cerr << put_now << " Lighter Th: [ " ;
 	std::copy(lighter_thresholds.begin(), lighter_thresholds.end(), std::ostream_iterator<int>(std::cerr, " "));
 	std::cerr << "]" << std::endl;
 	assert(lighter_thresholds == thresholds);
@@ -307,12 +307,12 @@ if(fixedinput == ""){ //no fixed input provided
 
 	std::vector<long double> cdf = covariateutils::log_binom_cdf(k,p);
 
-	std::cerr << put_now << "log CDF: [ " ;
+	std::cerr << put_now << " log CDF: [ " ;
 	for(auto c : cdf){std::cerr << c << " ";}
 	std::cerr << "]" << std::endl;
 
 	//get trusted kmers bf using subsampled bf
-	std::cerr << put_now << "Finding trusted kmers" << std::endl;
+	std::cerr << put_now << " Finding trusted kmers" << std::endl;
 
 	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 	recalibrateutils::kmer_cache_t trusted_hashes = 
@@ -344,11 +344,11 @@ if(trustedlist != ""){
 #endif
 
 	//use trusted kmers to find errors
-	std::cerr << put_now << "Finding errors" << std::endl;
+	std::cerr << put_now << " Finding errors" << std::endl;
 	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 	data = recalibrateutils::get_covariatedata(file.get(), trusted, k);
 } else { //use fixedfile to find errors
-	std::cerr << put_now << "Using fixed file to find errors." << std::endl;
+	std::cerr << put_now << " Using fixed file to find errors." << std::endl;
 	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 	std::unique_ptr<htsiter::HTSFile> fixedfile = std::move(open_file(fixedinput, is_bam, use_oq, set_oq));
 	while(file->next() >= 0 && fixedfile->next() >= 0){
@@ -367,7 +367,7 @@ if(trustedlist != ""){
 		rgvals[i.second] = i.first;
 	}
 
-	std::cerr << put_now << "Covariate data:" << std::endl;
+	std::cerr << put_now << " Covariate data:" << std::endl;
 	std::cerr << "rgcov:";
 	for(int i = 0; i < data.rgcov.size(); ++i){ //rgcov[rg][0] = errors
 		std::cerr << i << ": " << rgvals[i] << " {" << data.rgcov[i][0] << ", " << data.rgcov[i][1] << "}" << std::endl;
@@ -385,10 +385,10 @@ if(trustedlist != ""){
 
 
 	//recalibrate reads and write to file
-	std::cerr << put_now << "Training model" << std::endl;
+	std::cerr << put_now << " Training model" << std::endl;
 	covariateutils::dq_t dqs = data.get_dqs();
 
-	std::cerr << put_now << "dqs:\n" << "meanq: ";
+	std::cerr << put_now << " dqs:\n" << "meanq: ";
 	print_vec<int>(dqs.meanq);
 	std::cerr << "\nrgdq:" << std::endl;
 	for(int i = 0; i < dqs.rgdq.size(); ++i){
@@ -431,7 +431,7 @@ if(trustedlist != ""){
 		}
 	}
 
-	std::cerr << put_now << "Recalibrating file" << std::endl;
+	std::cerr << put_now << " Recalibrating file" << std::endl;
 	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
 	recalibrateutils::recalibrate_and_write(file.get(), dqs, "-");
 	return 0;
