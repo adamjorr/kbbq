@@ -10,6 +10,7 @@
 #include <htslib/sam.h>
 #include <htslib/kseq.h>
 #include <htslib/kstring.h>
+#include <htslib/thread_pool.h>
 #include <minion.hpp>
 #include "readutils.hh"
 #include "kseq.hh"
@@ -57,10 +58,14 @@ public:
 	samFile *of;
 	bool use_oq;
 	bool set_oq;
-	BamFile(std::string filename, bool use_oq = false, bool set_oq = false):
-		use_oq(use_oq), set_oq(set_oq){
+	htsThreadPool* tp;
+	BamFile(std::string filename, htsThreadPool* tp, bool use_oq = false, bool set_oq = false):
+		use_oq(use_oq), set_oq(set_oq), tp(tp){
 		r = bam_init1();
 		sf = sam_open(filename.c_str(), "r");
+		if(tp->pool && hts_set_thread_pool(sf, tp) != 0){
+			std::cerr << "Couldn't attach thread pool to file " << filename << std::endl;
+		};
 	    h = sam_hdr_read(sf);
 	    //TODO: support iteration with index?
 	    // idx = sam_index_load(sf, filename.c_str());
@@ -99,8 +104,12 @@ public:
 	BGZF* fh;
 	kseq::kseq_t* r;
 	BGZF* ofh;
-	FastqFile(std::string filename): ofh(NULL){
+	htsThreadPool* tp;
+	FastqFile(std::string filename, htsThreadPool* tp): ofh(NULL), tp(tp){
 		fh = bgzf_open(filename.c_str(),"r");
+		if(tp->pool && bgzf_thread_pool(fh, tp->pool, tp->qsize) < 0){
+			std::cerr << "Couldn't attach thread pool to file " << filename << std::endl;
+		}
 		r = kseq::kseq_init(fh);
 	};
 	~FastqFile(){

@@ -7,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include <htslib/hfile.h>
+#include <htslib/thread_pool.h>
 #include <getopt.h>
 #include <cassert>
 #include <functional>
@@ -18,13 +19,13 @@
 #endif
 
 //opens file filename and returns a unique_ptr to the result.
-std::unique_ptr<htsiter::HTSFile> open_file(std::string filename, bool is_bam = true, bool use_oq = false, bool set_oq = false){
+std::unique_ptr<htsiter::HTSFile> open_file(std::string filename, htsThreadPool* tp, bool is_bam = true, bool use_oq = false, bool set_oq = false){
 	std::unique_ptr<htsiter::HTSFile> f(nullptr);
 	if(is_bam){
-		f = std::move(std::unique_ptr<htsiter::BamFile>(new htsiter::BamFile(filename, use_oq, set_oq)));
+		f = std::move(std::unique_ptr<htsiter::BamFile>(new htsiter::BamFile(filename, tp, use_oq, set_oq)));
 		// f.reset(new htsiter::BamFile(filename));
 	} else {
-		f = std::move(std::unique_ptr<htsiter::FastqFile>(new htsiter::FastqFile(filename)));
+		f = std::move(std::unique_ptr<htsiter::FastqFile>(new htsiter::FastqFile(filename, tp)));
 		// f.reset(new htsiter::FastqFile(filename));
 	}
 	return f;
@@ -70,6 +71,7 @@ struct option long_options[] = {
 	{"coverage",required_argument,0,'c'}, //default: estimated
 	{"fixed",required_argument,0,'f'}, //default: none
 	{"alpha",required_argument,0,'a'}, //default: 7 / coverage
+	{"threads",required_argument,0,'t'},
 #ifndef NDEBUG
 	{"debug",required_argument,0,'d'},
 #endif
@@ -84,6 +86,7 @@ int main(int argc, char* argv[]){
 	uint32_t seed = 0; 
 	bool set_oq = false;
 	bool use_oq = false;
+	int nthreads = 0;
 	std::string fixedinput = "";
 
 	int opt = 0;
@@ -92,7 +95,7 @@ int main(int argc, char* argv[]){
 	std::string kmerlist("");
 	std::string trustedlist("");
 #endif
-	while((opt = getopt_long(argc,argv,"k:usg:c:f:a:d:",long_options, &opt_idx)) != -1){
+	while((opt = getopt_long(argc,argv,"k:usg:c:f:a:t:d:",long_options, &opt_idx)) != -1){
 		switch(opt){
 			case 'k':
 				k = std::stoi(std::string(optarg));
@@ -117,6 +120,12 @@ int main(int argc, char* argv[]){
 				break;
 			case 'a':
 				alpha = std::stold(std::string(optarg));
+				break;
+			case 't':
+				nthreads = std::stoi(std::string(optarg));
+				if(nthreads < 0){
+					std::cerr << put_now << " Error: threads must be >= 0." << std::endl;
+				}
 				break;
 #ifndef NDEBUG
 			case 'd': {
@@ -145,6 +154,19 @@ int main(int argc, char* argv[]){
 
 	long double sampler_desiredfpr = 0.01; //Lighter uses .01
 	long double trusted_desiredfpr = 0.0005; // and .0005
+
+	//create thread pool
+	std::unique_ptr<htsThreadPool, std::function<void(htsThreadPool*)>> tp{
+		new htsThreadPool,
+		[](htsThreadPool* ptr){
+			if(ptr->pool){hts_tpool_destroy(ptr->pool);}
+		}
+	};
+	if(nthreads > 0 && !(tp->pool = hts_tpool_init(nthreads))){
+		std::cerr << put_now << " Unable to construct thread pool." << std::endl;
+		return 1;
+	}
+
 
 	//see if we have a bam
 	htsFormat fmt;
@@ -175,6 +197,9 @@ if(fixedinput == ""){ //no fixed input provided
 		if(is_bam){
 			std::cerr << put_now << " Estimating genome length" << std::endl;
 			samFile* sf = hts_hopen(fp, filename.c_str(), "r");
+			if(tp->pool && hts_set_thread_pool(sf, tp.get()) != 0){
+				std::cerr << "Couldn't attach thread pool to file " << filename << std::endl;
+			};
 			sam_hdr_t* h = sam_hdr_read(sf);
 			for(int i = 0; i < sam_hdr_nref(h); ++i){
 				genomelen += sam_hdr_tid2len(h, i);
@@ -204,7 +229,7 @@ if(fixedinput == ""){ //no fixed input provided
 		if(coverage == 0){
 			std::cerr << put_now << " Estimating coverage." << std::endl;
 			uint64_t seqlen = 0;
-			file = std::move(open_file(filename, is_bam, use_oq, set_oq));
+			file = std::move(open_file(filename, tp.get(), is_bam, use_oq, set_oq));
 			std::string seq("");
 			while((seq = file->next_str()) != ""){
 				seqlen += seq.length();
@@ -230,10 +255,9 @@ if(fixedinput == ""){ //no fixed input provided
 		coverage = 7.0l/alpha;
 	}
 
-	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
+	file = std::move(open_file(filename, tp.get(), is_bam, use_oq, set_oq));
 
 	std::cerr << put_now << " Sampling kmers at rate " << alpha << std::endl;
-	recalibrateutils::kmer_cache_t subsampled_hashes;
 
 	//in the worst case, every kmer is unique, so we have genomelen * coverage kmers
 	//then we will sample proportion alpha of those.
@@ -253,15 +277,10 @@ if(fixedinput == ""){ //no fixed input provided
 	htsiter::KmerSubsampler subsampler(file.get(), k, alpha, seed);
 	//load subsampled bf.
 	//these are hashed kmers.
-	subsampled_hashes = recalibrateutils::subsample_kmers(subsampler);
+	recalibrateutils::subsample_kmers(subsampler, subsampled);
 
 	//report number of sampled kmers
-	uint64_t nsampled = 0;
-	for(std::vector<uint64_t>& v : subsampled_hashes){
-		nsampled += v.size();
-	}
-	std::cerr << put_now << " Sampled " << nsampled << " valid kmers." << std::endl;
-	recalibrateutils::add_kmers_to_bloom(subsampled_hashes, subsampled);
+	std::cerr << put_now << " Sampled " << subsampled.inserted_elements() << " valid kmers." << std::endl;
 
 #ifndef NDEBUG
 	//ensure kmers are properly sampled
@@ -314,10 +333,8 @@ if(fixedinput == ""){ //no fixed input provided
 	//get trusted kmers bf using subsampled bf
 	std::cerr << put_now << " Finding trusted kmers" << std::endl;
 
-	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
-	recalibrateutils::kmer_cache_t trusted_hashes = 
-		recalibrateutils::find_trusted_kmers(file.get(), subsampled, thresholds, k);
-	recalibrateutils::add_kmers_to_bloom(trusted_hashes, trusted);
+	file = std::move(open_file(filename, tp.get(), is_bam, use_oq, set_oq));
+	recalibrateutils::find_trusted_kmers(file.get(), trusted, subsampled, thresholds, k);
 
 #ifndef NDEBUG
 // check that all kmers in trusted list are actually trusted in our list.
@@ -345,12 +362,12 @@ if(trustedlist != ""){
 
 	//use trusted kmers to find errors
 	std::cerr << put_now << " Finding errors" << std::endl;
-	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
+	file = std::move(open_file(filename, tp.get(), is_bam, use_oq, set_oq));
 	data = recalibrateutils::get_covariatedata(file.get(), trusted, k);
 } else { //use fixedfile to find errors
 	std::cerr << put_now << " Using fixed file to find errors." << std::endl;
-	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
-	std::unique_ptr<htsiter::HTSFile> fixedfile = std::move(open_file(fixedinput, is_bam, use_oq, set_oq));
+	file = std::move(open_file(filename, tp.get(), is_bam, use_oq, set_oq));
+	std::unique_ptr<htsiter::HTSFile> fixedfile = std::move(open_file(fixedinput, tp.get(), is_bam, use_oq, set_oq));
 	while(file->next() >= 0 && fixedfile->next() >= 0){
 		readutils::CReadData read = file->get();
 		readutils::CReadData fixedread = fixedfile->get();
@@ -367,6 +384,7 @@ if(trustedlist != ""){
 		rgvals[i.second] = i.first;
 	}
 
+#ifndef NDEBUG
 	std::cerr << put_now << " Covariate data:" << std::endl;
 	std::cerr << "rgcov:";
 	for(int i = 0; i < data.rgcov.size(); ++i){ //rgcov[rg][0] = errors
@@ -382,12 +400,14 @@ if(trustedlist != ""){
 		}
 		std::cerr << "]" << std::endl;
 	}
-
+#endif
 
 	//recalibrate reads and write to file
 	std::cerr << put_now << " Training model" << std::endl;
 	covariateutils::dq_t dqs = data.get_dqs();
 
+
+#ifndef NDEBUG
 	std::cerr << put_now << " dqs:\n" << "meanq: ";
 	print_vec<int>(dqs.meanq);
 	std::cerr << "\nrgdq:" << std::endl;
@@ -430,9 +450,10 @@ if(trustedlist != ""){
 			}
 		}
 	}
+#endif
 
 	std::cerr << put_now << " Recalibrating file" << std::endl;
-	file = std::move(open_file(filename, is_bam, use_oq, set_oq));
+	file = std::move(open_file(filename, tp.get(), is_bam, use_oq, set_oq));
 	recalibrateutils::recalibrate_and_write(file.get(), dqs, "-");
 	return 0;
 }

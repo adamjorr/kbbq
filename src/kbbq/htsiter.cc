@@ -34,7 +34,13 @@ void BamFile::recalibrate(const std::vector<uint8_t>& qual){
 	// }
 }
 // TODO:: add a PG tag to the header
-int BamFile::open_out(std::string filename){this->of = sam_open(filename.c_str(), "wb"); return sam_hdr_write(this->of, this->h);}
+int BamFile::open_out(std::string filename){
+	this->of = sam_open(filename.c_str(), "wb");
+	if(tp->pool && hts_set_thread_pool(this->of, tp) != 0){
+		std::cerr << "Couldn't attach thread pool to file " << filename << std::endl;
+	};
+	return sam_hdr_write(this->of, this->h);
+}
 //
 int BamFile::write(){return sam_write1(this->of, this->h, this->r);}
 
@@ -60,6 +66,9 @@ void FastqFile::recalibrate(const std::vector<uint8_t>& qual){
 
 int FastqFile::open_out(std::string filename){
 	ofh = bgzf_open(filename.c_str(),"w"); //mode should be "wu" if uncompressed output is desired.
+	if(tp->pool && bgzf_thread_pool(fh, tp->pool, tp->qsize) < 0){
+		std::cerr << "Couldn't attach thread pool to file " << filename << std::endl;
+	}
 	return ofh == 0 ? -1 : 0;
 }
 
