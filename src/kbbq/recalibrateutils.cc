@@ -4,38 +4,21 @@ using namespace htsiter;
 
 namespace recalibrateutils{
 
-//if the number of reads doesn't fit in a uint64_t call this twice :)
-kmer_cache_t subsample_kmers(KmerSubsampler& s, uint64_t chunksize){
-	uint64_t counted = 0;
-	kmer_cache_t ret;
-	ret.fill(std::vector<uint64_t>());
-	for(bloom::Kmer kmer = s.next(); s.not_eof && ++counted < chunksize; kmer = s.next()){
+void subsample_kmers(KmerSubsampler& s, bloom::Bloom& sampled){
+	for(bloom::Kmer kmer = s.next(); s.not_eof; kmer = s.next()){
 		if(kmer.valid()){
-			ret[kmer.prefix()].push_back(kmer.get());
-		}
-	}
-	std::cerr << "Sampled kmers: " << counted << std::endl;
-	std::cerr << "Total kmers in dataset: " << s.total_kmers << std::endl;
-	return ret;
-}
-
-//this is a good target for multithreading ;)
-void add_kmers_to_bloom(const kmer_cache_t& kmers, bloom::Bloom& filters){
-	for(const std::vector<uint64_t>& v : kmers){
-		for(uint64_t kmer : v){
-			filters.insert(kmer);
+			sampled.insert(kmer);
 		}
 	}
 }
 
-kmer_cache_t find_trusted_kmers(HTSFile* file, const bloom::Bloom& sampled, std::vector<int> thresholds, int k, uint64_t chunksize){
-	uint64_t counted = 0;
-	kmer_cache_t ret;
-	ret.fill(std::vector<uint64_t>());
+void find_trusted_kmers(HTSFile* file, bloom::Bloom& trusted,
+	const bloom::Bloom& sampled, std::vector<int> thresholds, int k)
+{
 	int n_trusted;
 	bloom::Kmer kmer(k);
 	//the order here matters since we don't want to advance the iterator if we're chunked out
-	while(counted++ < chunksize && file->next() >= 0){
+	while(file->next() >= 0){
 		readutils::CReadData read = file->get();
 		read.infer_read_errors(sampled, thresholds, k);
 		n_trusted = 0;
@@ -49,12 +32,11 @@ kmer_cache_t find_trusted_kmers(HTSFile* file, const bloom::Bloom& sampled, std:
 				--n_trusted;
 			}
 			if(kmer.valid() && n_trusted == k){
-				ret[kmer.prefix()].push_back(kmer.get());
+				trusted.insert(kmer);
 				//trusted kmer here
 			}
 		}
 	}
-	return ret;
 }
 
 covariateutils::CCovariateData get_covariatedata(HTSFile* file, const bloom::Bloom& trusted, int k){
