@@ -397,6 +397,7 @@ public:
 	inline void insert(const T& t){bloom.insert(t);}
 	inline bool query(const Kmer& kmer) const {return (kmer.valid() && bloom.contains(kmer.get()));}
 	inline double fprate() const {return bloom.effective_fpp();}
+	inline unsigned long long inserted_elements() const {return bloom.element_count();}
 	// inline double fprate() const {return bloom.GetActualFP();}
 };
 
