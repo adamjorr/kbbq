@@ -24,9 +24,11 @@ It also requires a processor that supports AVX1 instructions. If you run into a 
 
 ## quickstart
 
-`kbbq --threads 6 --genomelen 3000000000 --coverage 30 input.fastq > recalibrated.fastq`
+`kbbq --threads 6 --genomelen NUM_BASEPAIRS --coverage COVERAGE INPUT.fq > RECALIBRATED.fq.gz`
 
-`kbbq` accepts reads in SAM/BAM or FASTQ format. It will automatically detect the format of the input. If the input is SAM/BAM, none of the alignment information is used; it is merely supported for convenience.
+For example, use `--genomelen 1000000 --coverage 20` for a 1 megabase region sequenced to a depth of 20X. If the coverage is not provided, `kbbq` will take an extra pass through the data to estimate it. If the genome length is not provided, it can be estimated using the headers in a BAM file, but it will fail with FASTQ input.
+
+`kbbq` accepts reads in SAM/BAM or FASTQ format, gzipped or not. It will automatically detect the format of the input. If the input is SAM/BAM, none of the alignment information is used; it is merely supported for convenience. The output will be gzipped.
 
 ## options
 
